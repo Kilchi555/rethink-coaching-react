@@ -1,0 +1,728 @@
+  h2, h3, h4 {
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    color: #2c3e50;
+    text-align: center;
+   
+  }
+  
+  h4{
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    text-align: left;
+  }
+  
+  
+  p {
+    font-size: 1rem;
+    color: #333232;
+  
+  }
+  
+  .hidden {
+    display: none;
+  }
+  
+  /* Bereich für die Sektionen (Admin, Mitarbeiter, Kunde) */
+  section {
+    margin-bottom: 1rem;
+  }
+  
+  .dashboard-section{
+    background-color: #fff;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin-bottom: 1rem;
+  }
+
+  .dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #ccc;
+  }
+  
+  .header-left,
+  .header-center,
+  .header-right {
+    flex: 1;
+    display: flex;
+    align-items: center;
+  }
+  
+  .header-left {
+    justify-content: flex-start;
+  }
+  
+  .header-center {
+    justify-content: center;
+  }
+  
+  .header-right {
+    justify-content: flex-end;
+    gap: 10px;
+    text-align: right;
+  }
+  
+  .header-logo {
+    height: 40px;
+    max-height: 100%;
+  }
+  
+  .logout-button {
+    padding: 8px 16px;
+    background-color: #e53935;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  
+  .logout-button:hover {
+    background-color: #c62828;
+  }
+  
+  .user-email {
+    font-size: 0.9rem;
+    color: #555;
+  }
+  
+  #customer-appointments {
+    background-color: #ffffff;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin-top: 1rem;
+  }
+  
+  #customer-appointments h3 {
+    margin-bottom: 1rem;
+    color: #2c3e50;
+    text-align: left;
+  }
+  
+  /* Kunden-Termine */
+  /* Grundstil für den klappbaren Termin-Container */
+  .appointment-item {
+    background-color: #f0f0f0;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border: 1px solid #d3d3d3;
+    cursor: pointer; 
+    transition: background-color 0.3s ease; /* Sanfter Übergang für Hover-Effekt */
+  }
+  
+  .appointment-item:hover {
+    background-color: #e0e0e0; /* Leicht hellerer Hintergrund beim Überfahren mit der Maus */
+  }
+  
+  /* Stil für den Header-Bereich des Termins (immer sichtbar) */
+  .appointment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1rem;
+    color: #555;
+    margin-bottom: 0.5rem;
+  }
+  
+   /* Stil für den Toggle Button */
+  .toggle-notes-button {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    margin-top: 0.5rem;
+    background-color: #5a6a7c; /* Dunkler als der Header */
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+  }
+  
+  .toggle-notes-button:hover {
+     background-color: #415162;
+  }
+  
+  
+  .appointment-item strong {
+    font-weight: bold;
+    color: #2c3e50;
+  }
+  
+  .note-text{
+    font-size: 0.9rem;
+    font-style: italic;
+    color: #7f8c8d;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Stil für den ausgeklappten Zustand */
+  .appointment-item.expanded {
+    background-color: #e0f7fa; /* Ein blasserer Hintergrund für den erweiterten Zustand */
+  }
+  
+  /* Stil für den Notizen-Bereich (Standardmäßig ausgeblendet) */
+  .appointment-item .notes-section {
+    display: none; /* Standardmäßig sind die Notizen ausgeblendet */
+    margin-top: 1rem; /* Abstand zum Termin-Header und Button */
+    padding-top: 1rem;
+    border-top: 1px solid #d0d0d0; /* Eine dünne Linie zur Trennung */
+  }
+  
+  /*Stil für die Notizen wenn expanded*/
+  .appointment-item.expanded .notes-section {
+    display: block; /* Anzeigen der Notizen, wenn das Element die Klasse "expanded" hat */
+  }
+  
+  #no-appointments-message {
+    color: #e74c3c;
+    font-size: 1rem;
+    font-style: italic;
+    padding: 1rem;
+    background-color: #f8f0f0;
+    border-radius: 0.5rem;
+    border: 1px solid #e74c3c;
+    margin-top: 1rem;
+  }
+  
+  /* Logout Button */
+  #logout-button {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background-color: #e74c3c;
+    color: white;
+    font-size: 1rem;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+    align-self: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  
+  #logout-button:hover {
+    background-color: #c0392b;
+    transform: scale(1.05);
+  }
+  
+  #logout-button:active {
+    transform: scale(1);
+  }
+  
+  /* Styling für Notizen */
+  .note-textarea {
+    width: 100%;
+    height: 80px;
+    padding: 1rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 0.375rem;
+    margin-top: 1rem;
+    resize: vertical;
+  }
+  
+  .save-note-button {
+    background-color: #3498db;
+    color: white;
+    padding: 0.75rem 1.2rem;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    margin-top: 1rem;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  
+  .save-note-button:hover {
+    background-color: #217dbb;
+    transform: scale(1.05);
+  }
+  
+  .save-note-button:active {
+    transform: scale(1);
+  }
+  
+  /* Styles für Notizen-Bereich */
+  .notes-section {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    background-color: #f8f8f8;
+  }
+  
+  .note-container{
+    margin-bottom: 1rem;
+  }
+  
+  .note-container h4{
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+    text-align: left;
+  }
+  
+  
+  /* Responsive Styles */
+  @media (max-width: 768px) {
+
+    .dashboard-header {
+      flex-direction: column;
+      align-items: stretch;
+      text-align: center;
+    }
+  
+    .header-left,
+    .header-center,
+    .header-right {
+      justify-content: center;
+      flex: none;
+    }
+  
+    .header-right {
+      flex-direction: column;
+      align-items: center;
+    }
+  
+    .user-email {
+      margin-top: 5px;
+      font-size: 0.85rem;
+      color: #666;
+    }
+      
+    header .container { /* Diese Regel sollte in Header.css oder global sein */
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    header h1 { /* Diese Regel sollte in Header.css oder global sein */
+      font-size: 1.5rem;
+    }
+
+    section {
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    #customer-appointments{
+      padding: 1rem;
+    }
+    #logout-button {
+      margin-top: 0.7rem;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+  
+  /* Spinner Animation */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  
+  .spinner {
+    border-radius: 50%;
+    width: 2rem;
+    height: 2rem;
+    border: 0.25rem solid rgba(125, 211, 252, 0.3);
+    border-top-color: #7dd3fc;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  
+  /* Stil für die Erfolgsmeldung beim Speichern der Notiz */
+  #note-saved-message {
+    position: fixed; /* Fixiert das Element am Viewport */
+    top: 0; /* Klebt es an den oberen Rand */
+    left: 0; /* Klebt es an den linken Rand */
+    width: 100%;
+    background-color: #d4edda; /* Ein heller Grünton */
+    color: #155724; /* Ein dunkler Grünton */
+    padding: 0.75rem 1.25rem;
+    margin-top: 1rem;
+    border: 1px solid #c3e6cb;
+    border-radius: 0.375rem;
+    font-size: 0.9rem;
+    text-align: center;
+    z-index: 1000;
+  }
+   
+  
+  .note-editor {
+    border: 1px solid #ccc;
+    padding: 0.5rem;
+    min-height: 50px;
+    white-space: pre-wrap; /* Zeilenumbrüche beibehalten */
+    word-wrap: break-word; /* Lange Wörter umbrechen */
+  }
+  
+  .edit-note-button  {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    margin-top: 0.5rem;
+    background-color: #007bff; /* Blaue Hintergrundfarbe */
+    color: white; /* Weiße Schriftfarbe */
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+  }
+  
+  .edit-note-button:hover {
+  background-color: #0056b3; /* Dunkleres Blau bei Hover */
+  }
+  
+  .toggle-notes-button {
+  background-color: #6c757d; /* Graue Hintergrundfarbe */
+  color: white;
+  }
+  
+  .toggle-notes-button:hover {
+  background-color: #545b62; /* Dunkleres Grau bei Hover */
+  }
+    
+  .note-editor:not(.hidden) + .note-formatting-buttons {
+    display: flex; /* Anzeigen, wenn der Editor nicht versteckt ist */
+    gap: 0.3rem; /* Optional: Abstand zwischen den Buttons im Flex-Container */
+    align-items: center; /* Optional: Vertikale Ausrichtung */
+  }
+  
+  #logout-button {
+    background-color: #dc3545; /* Rote Hintergrundfarbe */
+    color: white;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+  }
+  
+  #logout-button:hover {
+    background-color: #c82333; /* Dunkleres Rot bei Hover */
+  }
+  
+  .note-formatting-buttons {
+    margin-bottom: 0.5rem;
+    display: none; /* Standardmäßig ausblenden */
+  }
+    
+  .note-formatting-buttons + .note-editor:not(.hidden) {
+    /* Optional: Fügt etwas Abstand nach unten zum Editor hinzu, wenn die Buttons darüber sind */
+    margin-bottom: 0.5rem;
+  }
+    
+  .note-editor:not(.hidden) + .note-formatting-buttons {
+    display: flex; /* Anzeigen, wenn der Editor nicht versteckt ist */
+    gap: 0.3rem; /* Optional: Abstand zwischen den Buttons im Flex-Container */
+    align-items: center; /* Optional: Vertikale Ausrichtung */
+  }
+    
+  .note-formatting-buttons button {
+    padding: 0.3rem 0.6rem;
+    margin-right: 0.3rem;
+    font-weight: bold;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    border-radius: 0.2rem;
+    background-color: #f0f0f0;
+    color: #495057;
+    margin-top: 10px;
+  }
+    
+  .note-formatting-buttons button:hover {
+    background-color: #e2e6ea;
+  }
+    
+  .note-formatting-buttons button:focus {
+    outline: 0.1rem solid #007bff;
+    outline-offset: 0.1rem;
+  }
+    
+  .note-formatting-buttons button.italic {
+    font-style: italic;
+    font-weight: normal;
+  }
+    
+  .note-formatting-buttons button.underline {
+    text-decoration: underline;
+    font-weight: normal;
+  }
+  
+  #calendar.hidden {
+    display: none;
+  }
+    
+  .no-future-appointments {
+    /* Optional: Style für den Bereich ohne zukünftige Termine */
+    margin-bottom: 20px; /* Beispiel: etwas Abstand nach unten */
+  }
+  
+  /* Stil für den "Termine buchen"-Button */
+  .open-calendar-button {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    background-color: #28a745; /* Ein schöner Grünton für "buchen" */
+    color: white;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  
+  .open-calendar-button:hover {
+    background-color: #1e7e34; /* Dunklerer Grünton bei Hover */
+    transform: scale(1.05);
+  }
+  
+  .open-calendar-button:active {
+    transform: scale(1);
+  }
+
+  #appointment-details-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    z-index: 2000; /* HÖHER als alle anderen Elemente */
+    width: 90%;
+    max-width: 500px;
+  }
+  
+  
+  #appointment-details-modal h3 {
+    text-align: left;
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #2c3e50;
+  }
+  
+  #appointment-details-modal p {
+    margin-bottom: 0.5rem;
+  }
+  
+  #appointment-details-modal hr {
+    border-top: 1px solid #ccc;
+    margin: 1rem 0;
+  }
+  
+  #appointment-details-modal h4 {
+    font-size: 1.1rem;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    color: #3498db;
+    text-align: left;
+  }
+  
+  /* ------------------- FullCalendar Grundlayout ------------------- */
+.fc {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+  color: #333;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Toolbar oben kompakt & reduziert */
+.fc .fc-toolbar {
+  position: relative; /* statt absolute */
+  top: auto;
+  left: auto;
+  height: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem;
+  height: 40px;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #1d1e19;
+}
+
+.fc .fc-button {
+  background-color: #019ee5;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.fc .fc-button:hover {
+  background-color: #007ac3;
+}
+
+/* Kalender-Zeitspalte kompakt */
+.fc-timegrid-slot-label {
+  font-size: 0.7rem !important;
+  padding: 0 4px !important;
+  text-align: right !important;
+  width: 20px !important;
+  min-width: 20px !important;
+  white-space: nowrap;
+}
+
+.fc-timegrid-slot-label:after {
+  content: '' !important;
+}
+
+/* Termin-Einträge */
+.fc .fc-event {
+  background-color: green;
+  border: 1px solid green;
+  color: white;
+  font-size: 0.75rem;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.fc .fc-event:hover {
+  opacity: 0.9;
+}
+
+/* Heute hervorheben */
+.fc .fc-day-today {
+  background-color: #fff3cd;
+}
+
+/* Sticky Kopfzeile für Wochentage */
+
+
+.weekday {
+  font-size: 0.75rem;
+}
+
+.month-day {
+  font-size: 0.7rem;
+  color: #777;
+}
+
+/* Termin-Details Popover */
+.fc-popover {
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 0.25rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  z-index: 1010;
+  max-width: 300px;
+}
+
+.fc-popover-header {
+  padding: 0.5rem;
+  background-color: #e9ecef;
+  border-bottom: 1px solid #ccc;
+  font-weight: bold;
+}
+
+.fc-popover-body {
+  padding: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* ------------------- Modal & Termin-Form ------------------- */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  position: fixed;
+  margin: 10px;
+  background: white;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  max-width: 900px;
+  width: 90%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  max-height: 90vh; overflow-y: auto;
+}
+
+.close-button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  background: none;
+  border: none;
+}
+
+.close-button:hover {
+  color: black;
+}
+
+.calendar-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.calendar-form label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.calendar-form input,
+.calendar-form select {
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 0.95rem;
+  width: 100%;
+}
+
+.calendar-form button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+.calendar-form button:first-of-type {
+  background-color: #019ee5;
+  color: white;
+}
+
+.calendar-form button:last-of-type {
+  background-color: #e0e0e0;
+  color: #333;
+}

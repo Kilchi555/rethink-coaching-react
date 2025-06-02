@@ -1,0 +1,524 @@
+/* index.css */
+
+/* ====== Grundlegendes Setup ====== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+p {
+  font-size: clamp(1rem, 1.5vw, 2rem);
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+  background-color: #f9f9f9;
+  color: #333;
+}
+
+/* ====== Container ====== */
+/* Sie hatten hier eine leere Regel. Falls Sie einen allgemeinen Container-Stil haben, hier einfügen. */
+.container {
+  max-width: 1200px; /* Beispielbreite */
+  margin: 0 auto; /* Zentrieren */
+  padding: 0 20px; /* Etwas Innenabstand */
+}
+
+
+/* In Ihrer index.css */
+
+/* ====== Sticky Navbar (für das <header>-Element) ====== */
+.header {
+  background-color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  top: 0;
+  z-index: 1000;
+  display: flex; /* WICHTIG: Macht es zum Flex-Container */
+  justify-content: space-between; /* WICHTIG: Logo links, Navbar rechts */
+  align-items: center; /* Vertikale Zentrierung */
+  padding: 10px 20px;
+}
+
+/* Für den Logo-Container (div mit Klasse "logo") */
+.logo {
+  margin-left: 0;
+  height: 60px; /* Setzt die Höhe des Logo-Containers */
+  /* Füge diese Regel hinzu, um das Bild IM Logo-Container zu skalieren */
+}
+
+/* WICHTIG: Diese Regel ZUSÄTZLICH für das Bild im Logo-Container */
+.logo img {
+  max-height: 100%; /* Bild nimmt maximale Höhe des Eltern-Containers ein */
+  width: auto;     /* Breite automatisch anpassen, um Seitenverhältnis zu behalten */
+  display: block;
+  /* Entfernt ggf. unerwünschten Leerraum unter dem Bild */
+}
+
+
+/* Navbar (für das <nav>-Element) */
+.navbar {
+  display: flex; /* WICHTIG: Macht es zum Flex-Container */
+  justify-content: flex-end; /* WICHTIG: Richtet die Links innerhalb der Navbar rechtsbündig aus */
+  /* gap: 2rem; könnte hier auch sein, wenn es für die Nav links gemeint ist,
+     aber .navbar ul hat es bereits, was auch gut ist */
+}
+
+.navbar ul {
+  list-style: none;
+  display: flex;
+  gap: 2rem; /* Abstand zwischen den Links */
+  padding: 0; /* Sicherstellen, dass Listen-Padding entfernt ist */
+  margin: 0;  /* Sicherstellen, dass Listen-Margin entfernt ist */
+}
+
+.navbar a {
+  text-decoration: none;
+  color: #333;
+  font-weight: 500;
+  transition: color 0.3s ease;
+  font-size: clamp(1rem, 1.5vw, 2rem);
+}
+
+.navbar a:hover {
+  color: #4892fa;
+}
+
+/* ... der rest deiner index.css ... */
+
+.navbar a:hover::after {
+  width: 100%;
+}
+
+/* ====== Mobile Menü Toggle ====== */
+.menu-toggle {
+  display: none;
+  font-size: 2rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  /* Das Menü ist standardmäßig ausgeblendet */
+  .navbar {
+    display: none;
+    position: absolute;
+    right: 0;
+    background-color: #fff;
+    width: 100%;
+    text-align: center;
+    opacity: 0;
+    overflow: hidden;
+    transform: translateY(-50px);
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  /* Zeigt das Menü an, wenn es aktiviert wird */
+  .navbar.active {
+    display: block; /* <--- WICHTIG: Das Menü sichtbar machen */
+    opacity: 1; /* Sichtbar machen */
+    transform: translateY(0); /* An seine finale Position bewegen */
+    pointer-events: auto; /* Macht Links wieder klickbar */
+  }
+
+  .navbar ul {
+    display: block;
+    padding: 0;
+  }
+
+  .navbar li {
+    padding: 1rem 0;
+  }
+
+  .menu-toggle {
+    display: block; /* Zeigt den Button in der mobilen Ansicht an */
+  }
+}
+
+section[id] { /* Wählt alle section-Elemente mit einer ID */
+  scroll-margin-top: 80px; /* Passe diesen Wert an die tatsächliche Höhe deines Headers an */
+}
+/* ====== Hero Section ====== */
+.hero {
+  background: linear-gradient(135deg, #e0f0ff, #ffffff);
+  padding: 4rem 1rem;
+  text-align: center;
+}
+
+.hero h1 {
+  font-size: clamp(1.5rem, 3vw, 4rem);
+  margin-bottom: 1rem;
+}
+
+.hero p {
+  font-size: clamp(1rem, 1.8vw, 2.5rem);
+  margin-bottom: 1rem;
+}
+
+/* ====== Über Uns ====== */
+.about-section h2,
+.testimonials-section h2,
+.faq-section h2 {
+  font-size: clamp(1.5rem, 3vw, 4rem);
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.intro {
+  max-width: 800px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+#about {
+  padding: 10%;
+}
+
+.about-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-top: 2rem;
+  text-align: center;
+  align-items: center;   /* vertikale Zentrierung */
+}
+
+/* ACHTUNG: Dies überschreibt den p-Stil von oben für alle p-Tags!
+   Wenn Sie nur in .about-content P-Tags padding_top geben möchten,
+   machen Sie es spezifischer, z.B. .about-content p { padding-top: 10px; }
+*/
+
+.coaches-section { /* <-- NEU */
+  padding: 10%;
+}
+
+.about-text {
+  flex: 1;
+}
+
+.about-image img {
+  max-width: 60%;
+  border-radius: 10px;
+  display: block;
+  margin: 0 auto;
+}
+
+@media (max-width: 1200px) {
+  .about-content {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .about-image img {
+    max-width: 100%;
+  }
+}
+
+/* ====== Coaches ====== */
+.coach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.coach-card {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  transition: transform 0.3s;
+  text-align: center;
+}
+
+.coach-card:hover {
+  transform: translateY(-5px);
+}
+
+.coach-card img {
+  width: 100%;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* ====== Testimonials ====== */
+#testimonials {
+  padding: 10%;
+}
+
+.testimonials-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.testimonial-card {
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.testimonial-text {
+  font-style: italic;
+}
+
+.testimonial-author {
+  display: flex;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.testimonial-author img {
+  width: 50px;
+  border-radius: 50%;
+  margin-right: 1rem;
+}
+
+.name {
+  font-weight: bold;
+}
+
+/* ====== FAQ Section ====== */
+.faq-section {
+  padding: 10%;
+}
+
+.faq-item {
+  margin-bottom: 10px; /* Optional: Abstand zwischen den FAQ-Elementen */
+  border: 1px solid #ddd; /* Optional: Rahmen um jedes FAQ-Element */
+  border-radius: 5px; /* Optional: Abgerundete Ecken */
+  overflow: hidden; /* Wichtig, um den Inhalt zu verstecken, wenn max-height 0 ist */
+}
+
+.faq-question {
+  background: #fff;
+  border: none;
+  padding: 1.5rem;
+  text-align: left;
+  width: 100%;
+  font-size: clamp(1rem, 2vw, 3rem);
+  font-weight: bold;
+  cursor: pointer;
+  border-bottom: 1px solid #ccc;
+  transition: background 0.2s ease;
+  display: flex; /* Stellt sicher, dass das Icon neben der Frage ist */
+  justify-content: space-between; /* Frage links, Icon rechts */
+  align-items: center; /* Vertikale Zentrierung */
+}
+
+.faq-question:hover {
+  background: #f0f0f0;
+}
+
+/* WICHTIG für das Aufklappen: NUR max-height und overflow nutzen */
+.faq-answer {
+  /* display: none;  <-- DIESE ZEILE ENTFERNEN */
+  padding: 0 1rem; /* Padding für den Antwortbereich selbst (horizontal) */
+  background: #f9f9f9;
+  max-height: 0; /* Standardmäßig geschlossen: Höhe ist 0 */
+  overflow: hidden; /* Inhalt, der über max-height hinausgeht, wird abgeschnitten */
+  transition: max-height 0.3s ease-in-out, padding 0.3s ease-in-out; /* Transition auch für Padding, wenn es sich ändert */
+}
+
+.faq-answer p {
+  padding: 1rem 0; /* Padding für den Text innerhalb der Antwort (vertikal) */
+  margin: 0; /* Entfernen Sie den Standard-Margin des p-Tags */
+}
+
+
+/* Wenn die 'open'-Klasse aktiv ist, bekommt die Antwort eine maximale Höhe */
+.faq-answer.open { /* <-- Wichtig: Dies ist die Klasse, die React auf den faq-answer div setzt */
+  max-height: 500px; /* **Einen ausreichend großen Wert wählen**, z.B. 500px oder 1000px,
+                       um sicherzustellen, dass der längste Inhalt passt. */
+  padding: 1rem; /* Wenn Sie möchten, dass das Padding nur im geöffneten Zustand sichtbar ist */
+}
+
+.faq-icon {
+  font-size: 1.2em;
+  margin-left: 10px; /* Abstand zum Text der Frage */
+  transition: transform 0.3s ease; /* Optionale Animation für das Icon */
+}
+
+.faq-question.open .faq-icon { /* Optional: Drehen des Icons, wenn die Frage offen ist */
+  transform: rotate(45deg); /* Für ein '+' zu einem 'x' oder ähnliches */
+}
+
+
+/* ====== Calendly Button (Sie hatten ihn behalten, falls Sie ihn wiederverwenden) ====== */
+#calendly-button-container {
+  /* Container ohne Hintergrundfarbe, damit nur der Button betroffen ist */
+  display: inline-block; /* Container nur so groß wie der Button */
+  margin: 20px 0;
+}
+
+.calendly-button {
+  background-color: #0069ff;
+  color: #ffffff;
+  padding: 15px 25px;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-weight: bold;
+  font-size: clamp(1rem, 1.5vw, 2rem);
+}
+
+/* ====== Footer ====== */
+.footer {
+  background-color: #333;
+  color: #fff;
+  padding: 40px 20px;
+  text-align: left;
+}
+
+.footer .container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.footer-section {
+  flex: 1;
+  margin: 10px;
+}
+
+.footer-section h3 {
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.footer-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-section ul li {
+  margin: 20px 0;
+}
+
+.footer-section ul li a {
+  text-decoration: none;
+  color: #ccc;
+  transition: color 0.3s ease;
+}
+
+.footer-section ul li a:hover {
+  color: #4892fa;
+}
+
+/* Social Media Icons */
+.footer-section .social-media ul {
+  display: flex;
+  gap: 1rem;
+}
+
+.footer-section .social-media ul li a {
+  color: #ccc;
+  font-size: 1.5rem;
+  transition: color 0.3s ease;
+}
+
+.footer-section .social-media ul li a:hover {
+  color: #4892fa;
+}
+
+/* Footer Bottom */
+.footer-bottom {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 0.9rem;
+  color: #aaa;
+}
+
+/* ====== Responsive Styles ====== */
+@media (max-width: 768px) {
+  .footer-content {
+    flex-direction: column; /* Stack the sections vertically */
+    align-items: center; /* Center align all sections */
+  }
+
+  .footer-section {
+    width: 100%;
+    margin-bottom: 20px; /* Add space between sections */
+  }
+
+  .footer-section h3 {
+    text-align: center; /* Center align the section titles */
+  }
+
+  .footer-section ul li {
+    text-align: center; /* Center align the links */
+  }
+
+  .footer-section .social-media ul {
+    justify-content: center; /* Center align social media icons */
+  }
+}
+
+/* ====== For small mobile devices (max-width: 480px) ====== */
+@media (max-width: 480px) {
+  .footer {
+    padding: 20px 10px;
+  }
+
+  .footer-section h3 {
+    font-size: 1rem; /* Slightly smaller text for small screens */
+  }
+
+  .footer-section ul li a {
+    font-size: 0.9rem; /* Slightly smaller links */
+  }
+
+  .footer-section .social-media ul li a {
+    font-size: 1.2rem; /* Slightly smaller icons */
+  }
+}
+
+#loginButton {
+  background-color: #0069ff;
+  color: #ffffff;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-size: clamp(1rem, 1vw, 1.5rem);
+  margin-top: 10px
+}
+
+/* ====== For small mobile devices (max-width: 480px) ====== */
+@media (max-width: 480px) {
+  .footer {
+    padding: 20px 10px;
+  }
+
+  .footer-section h3 {
+    font-size: 1rem; /* Slightly smaller text for small screens */
+  }
+
+  .footer-section ul li a {
+    font-size: 0.9rem; /* Slightly smaller links */
+  }
+
+  .footer-section .social-media ul li a {
+    font-size: 1.2rem; /* Slightly smaller icons */
+  }
+}

@@ -1,0 +1,17 @@
+# node modules
+node_modules/
+
+# Mac-Dateien
+.DS_Store
+
+# build / dist
+dist/
+build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env

@@ -4,6 +4,8 @@ import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import deLocale from '@fullcalendar/core/locales/de';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 
 const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
@@ -11,12 +13,17 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
 
   const [calendarTitle, setCalendarTitle] = useState('');
   const [newEventModalOpen, setNewEventModalOpen] = useState(false);
-  const [newEventStart, setNewEventStart] = useState('');
-  const [newEventEnd, setNewEventEnd] = useState('');
+  const [newEventDateTime, setNewEventDateTime] = useState(null);
+  const [durationMinutes, setDurationMinutes] = useState(60); // Standarddauer
+
+
   const [newEventTitle, setNewEventTitle] = useState(''); // Thema
   const [newEventLocation, setNewEventLocation] = useState('');
   const [events, setEvents] = useState([]);
   const [formErrors, setFormErrors] = useState({});
+
+  const [newEventDuration, setNewEventDuration] = useState(60); // in Minuten
+
 
   useEffect(() => {
     fetchEvents();
@@ -37,60 +44,70 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
 
   const handleSaveAppointment = async () => {
     const errors = {};
-
+  
+    if (!newEventDateTime) {
+      errors.time = 'Bitte Startdatum und Uhrzeit wählen.';
+    }
+  
     if (!newEventTitle.trim()) {
       errors.title = 'Thema ist erforderlich.';
     }
-
+  
     if (!newEventLocation.trim()) {
       errors.location = 'Ort ist erforderlich.';
     }
-
-    if (newEventStart === newEventEnd) {
-      errors.time = 'Start- und Endzeit dürfen nicht identisch sein.';
-    }
-
+  
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
     }
-
+  
     setFormErrors({});
-
+  
+    const start = newEventDateTime;
+    const end = new Date(start.getTime() + durationMinutes * 60000);
+  
     try {
       const payload = {
         title: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
         thema: newEventTitle,
         location: newEventLocation,
-        start_time: newEventStart,
-        end_time: newEventEnd,
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
       };
-    
+  
       console.log('📤 Sende Buchung:', payload);
-
+  
       const response = await fetch('/api/book-appointment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(payload),
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         setFormErrors({ server: errorData.error || 'Fehler beim Speichern.' });
         return;
       }
-
+  
       await fetchEvents();
-
+      alert("Termin wurde erfolgreich gebucht.");
+  
+      // Felder zurücksetzen
       setNewEventTitle('');
       setNewEventLocation('');
+      setNewEventDateTime(null);
+      setDurationMinutes(60);
       setNewEventModalOpen(false);
+  
     } catch (err) {
       console.error('Fehler beim Speichern des Termins:', err);
       setFormErrors({ server: 'Netzwerkfehler beim Speichern des Termins.' });
     }
   };
+  
+  
 
   const handleDatesSet = (arg) => {
     setCalendarTitle(arg.view.title);
@@ -115,12 +132,9 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
             : appointment.email || 'Unbekannter Termin',
         start: appointment.start_time,
         end: appointment.end_time,
-        extendedProps: {
-          location: appointment.location,
-          thema: appointment.thema,
-        },
-      }));
-      
+        location: appointment.location,
+        thema: appointment.thema,
+      }));      
   
       setEvents(eventsFromBackend);
     } catch (error) {
@@ -153,14 +167,27 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
           dayHeaderFormat={{ weekday: 'short', day: '2-digit' }}
           slotLabelFormat={{
             hour: 'numeric',
-            minute: undefined,
+            minute: '2-digit',
             hour12: false
           }}
           slotMinTime="06:00:00"
           slotMaxTime="22:00:00"
+          allDaySlot={false}
+
+          eventContent={(arg) => {
+            const { first_name, last_name } = arg.event.extendedProps;
+            const fullName = first_name && last_name
+              ? `${first_name} ${last_name}`
+              : arg.event.title;
+        
+            return {
+              html: `<div class="fc-event-title">${fullName}</div>`
+            };
+          }}
         />
 
         {newEventModalOpen && (
+            <div className="calendar-modal-overlay">
           <div className="calendar-form">
             <h3>Neuen Termin erstellen</h3>
 
@@ -191,23 +218,53 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
             </select>
             {formErrors.location && <p style={{ color: 'red' }}>{formErrors.location}</p>}
 
-            <label>Startzeit:</label>
-            <input
-              type="datetime-local"
-              value={newEventStart}
-              onChange={(e) => setNewEventStart(e.target.value)}
-            />
+            <label>Datum:</label>
+              <input
+                type="date"
+                value={newEventDate}
+                onChange={(e) => setNewEventDate(e.target.value)}
+                className="calendar-input"
+                required
+              />
+              {formErrors.date && <p style={{ color: 'red' }}>{formErrors.date}</p>}
 
-            <label>Endzeit:</label>
-            <input
-              type="datetime-local"
-              value={newEventEnd}
-              onChange={(e) => setNewEventEnd(e.target.value)}
-            />
+              <label>Startzeit:</label>
+              <DatePicker
+                selected={newEventDateTime}
+                onChange={(date) => setNewEventDateTime(date)}
+                showTimeSelect
+                timeIntervals={15}
+                dateFormat="Pp"
+                placeholderText="Datum & Zeit wählen"
+                className="calendar-input"
+              />
 
+              <label>Dauer:</label>
+              <select
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(parseInt(e.target.value))}
+                className="calendar-input"
+              >
+                <option value={30}>30 Minuten</option>
+                <option value={45}>45 Minuten</option>
+                <option value={60}>60 Minuten</option>
+                <option value={90}>90 Minuten</option>
+              </select>
 
-            <button onClick={handleSaveAppointment}>Speichern</button>
-            <button onClick={() => setNewEventModalOpen(false)}>Abbrechen</button>
+              <div className="button-row">
+                <button onClick={handleSaveAppointment}>Speichern</button>
+                <button
+                  onClick={() => {
+                    setNewEventModalOpen(false);
+                    setFormErrors({});
+                  }}
+                  style={{ backgroundColor: '#ccc', color: '#333', marginLeft: '1rem' }}
+                >
+                  Abbrechen
+                </button>
+              </div>
+
+          </div>
           </div>
         )}
       </div>

@@ -107,14 +107,17 @@
   /* Kunden-Termine */
   /* Grundstil für den klappbaren Termin-Container */
   .appointment-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap; /* Wichtig für mobiles Layout */
+    gap: 0.5rem;
     background-color: #f0f0f0;
-    padding: 1rem;
-    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem;
     border-radius: 0.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     border: 1px solid #d3d3d3;
-    cursor: pointer; 
-    transition: background-color 0.3s ease; /* Sanfter Übergang für Hover-Effekt */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
   }
   
   .appointment-item:hover {
@@ -131,29 +134,26 @@
     margin-bottom: 0.5rem;
   }
   
-   /* Stil für den Toggle Button */
-  .toggle-notes-button {
-    display: inline-block;
-    padding: 0.5rem 1rem;
-    margin-top: 0.5rem;
-    background-color: #5a6a7c; /* Dunkler als der Header */
-    color: white;
-    border: none;
-    border-radius: 0.375rem;
-    cursor: pointer;
-    font-size: 0.9rem;
-    transition: background-color 0.3s ease;
-  }
-  
-  .toggle-notes-button:hover {
-     background-color: #415162;
-  }
-  
-  
   .appointment-item strong {
     font-weight: bold;
     color: #2c3e50;
   }
+
+  .appointment-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    flex-grow: 1;
+    align-items: center;
+    font-size: 0.95rem;
+    color: #333;
+  }
+
+  /* Toggle-Button bleibt rechts */
+.appointment-actions {
+  display: flex;
+  align-items: center;
+}
   
   .note-text{
     font-size: 0.9rem;
@@ -258,6 +258,7 @@
     padding: 1rem;
     border-radius: 0.5rem;
     background-color: #f8f8f8;
+    width: 100%;
   }
   
   .note-container{
@@ -505,7 +506,7 @@
     padding: 1.5rem;
     border-radius: 0.5rem;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-    z-index: 2000; /* HÖHER als alle anderen Elemente */
+    z-index: 1003; /* HÖHER als alle anderen Elemente */
     width: 90%;
     max-width: 500px;
   }
@@ -555,10 +556,6 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.5rem 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.25rem;
   height: 40px;
 }
 
@@ -587,8 +584,8 @@
   font-size: 0.7rem !important;
   padding: 0 4px !important;
   text-align: right !important;
-  width: 20px !important;
-  min-width: 20px !important;
+  width: 10px !important;
+  min-width: 10px !important;
   white-space: nowrap;
 }
 
@@ -608,6 +605,7 @@
 
 .fc .fc-event:hover {
   opacity: 0.9;
+  cursor: pointer;
 }
 
 /* Heute hervorheben */
@@ -633,7 +631,7 @@
   border: 1px solid #ccc;
   border-radius: 0.25rem;
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  z-index: 1010;
+  z-index: 1002;
   max-width: 300px;
 }
 
@@ -653,7 +651,7 @@
 .modal {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 1001;
   background-color: rgba(0, 0, 0, 0.4);
   display: flex;
   justify-content: center;
@@ -662,14 +660,29 @@
 
 .modal-content {
   position: fixed;
-  margin: 10px;
+  margin: 5px;
   background: white;
-  padding: 1.5rem;
+  padding: 1rem;
   border-radius: 1rem;
   max-width: 900px;
-  width: 90%;
+  width: 100%;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  max-height: 90vh; overflow-y: auto;
+  max-height: 100vh; 
+  overflow-y: auto;
+}
+
+.modal-content .button {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.modal-content .button:hover {
+  color: #000;
 }
 
 .close-button {
@@ -691,22 +704,61 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  background-color: #ffffff;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  max-width: 500px;
+  width: 100%;
+  z-index: 1001;
+  margin: 10 auto; /* Zentriert das Formular */
+}
+
+.calendar-modal-overlay {
+  position: fixed;
+  inset: 0; /* top, right, bottom, left = 0 */
+  background-color: rgba(0, 0, 0, 0.4); /* halbtransparentes Overlay */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000; /* hoch genug, um über Kalender zu liegen */
+}
+
+.calendar-form input[type="datetime-local"] {
+  font-size: 0.95rem;     /* Schriftgröße */
+  color: #333333;         /* Schriftfarbe */
+  font-family: 'Arial', sans-serif; /* Schriftart */
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background-color: #f9f9f9; /* Optional: helles Feld */
+  cursor: pointer; /* Zeigt an, dass es klickbar ist */
+}
+
+.calendar-input {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
 }
 
 .calendar-form label {
   font-weight: 600;
   font-size: 0.9rem;
-  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .calendar-form input,
 .calendar-form select {
   padding: 0.5rem;
-  border-radius: 6px;
-  border: 1px solid #ccc;
   font-size: 0.95rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
   width: 100%;
 }
+
 
 .calendar-form button {
   padding: 0.5rem 1rem;
@@ -722,7 +774,112 @@
   color: white;
 }
 
+.calendar-form button:first-of-type:hover {
+  background-color: #007ac3;
+}
+
 .calendar-form button:last-of-type {
   background-color: #e0e0e0;
   color: #333;
 }
+
+.calendar-form button:last-of-type:hover {
+  background-color: #cfcfcf;
+}
+
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+.react-datepicker__input-container input {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 0.95rem;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+/* ============================
+   Toggle Notes Button Style
+   ============================ */
+   .toggle-notes-button {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    margin-top: 0.5rem;
+    background-color: #5a6a7c;       /* Dunkles Grau-Blau */
+    color: white;
+    border: none;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  
+  .toggle-notes-button:hover {
+    background-color: #415162;       /* Etwas dunkler beim Hover */
+    transform: scale(1.03);          /* Leichtes Aufpoppen */
+  }
+  
+  .toggle-notes-button:active {
+    transform: scale(0.98);          /* Klickanimation */
+  }
+
+  .appointment-item {
+    flex-direction: row; /* Flexbox für horizontale Anordnung */
+    align-items: center; /* Zentriert die Elemente vertikal */
+    justify-content: space-between; /* Verteilt den Platz zwischen den Elementen */
+  }
+
+  .appointment-info {
+    flex-direction: column; 
+    align-items: center;
+  }
+  
+  @media (max-width: 768px) {
+    .appointment-item {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  
+    .appointment-info {
+      flex-direction: column; 
+      align-items: flex-end;
+    }
+  
+    .appointment-actions {
+      width: 100%;
+      justify-content: flex-end;
+      margin-top: 0.5rem;
+    }
+  
+    .toggle-notes-button {
+      text-align: center;
+      justify-content: center;
+      align-items: center;  
+      width: 200px;
+    }
+
+    .calendar-form input,
+    .calendar-form select {
+      font-size: 0.9rem;
+    }
+  
+    .calendar-form {
+      padding: 0.5rem;
+    }
+  }
+  

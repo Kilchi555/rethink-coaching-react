@@ -270,21 +270,37 @@ const Dashboard = () => {
   };
 
   const handleEventClick = (info) => {
-    console.log('📅 Termin angeklickt:', info.event);
-    const { title, start, end, extendedProps } = info.event;
+    const event = info.event;
+    const { title, start, end, extendedProps } = event;
   
-    setSelectedAppointment({
-      title: title || extendedProps.title || 'Unbekannt',
-      start,
-      end,
-      location: extendedProps.location,
-      thema: extendedProps.thema,
+    // Datum & Zeit formatieren (deutsche Schreibweise)
+    const formatter = new Intl.DateTimeFormat('de-DE', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
     });
   
+    const timeFormatter = new Intl.DateTimeFormat('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  
+    const selected = {
+      title: title || 'Unbekannter Kunde',
+      startFormatted: formatter.format(start),
+      timeRange: `${timeFormatter.format(start)} – ${timeFormatter.format(end)}`,
+      location: extendedProps.location || 'Nicht angegeben',
+      thema: extendedProps.thema || 'Kein Thema angegeben',
+    };
+  
+    console.log('🧠 selectedAppointment gesetzt:', selected);
+  
+    setSelectedAppointment(selected);
     setIsAppointmentDetailsModalOpen(true);
   };
   
-
   // --- Termin-Item Render Funktion ---
   const renderAppointmentItem = (appointment, type) => {
     const isExpanded = expandedAppointmentIds[appointment.id] === true;
@@ -301,20 +317,24 @@ const Dashboard = () => {
       <div key={appointment.id} className={`appointment-item ${isExpanded ? 'expanded' : ''}`}>
         <div className="appointment-header">
           <strong>{appointment.title || 'Unbenannter Termin'}</strong><br />
-          {startDate.toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} – {endDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+          <div class="appointment-info">
+            {startDate.toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} – {endDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+          </div>
         </div>
-  
-        <button
-          className="toggle-notes-button"
-          onClick={() =>
-            setExpandedAppointmentIds(prev => ({
-              ...prev,
-              [appointment.id]: !isExpanded
-            }))
-          }
-        >
-          {isExpanded ? 'Notizen ausblenden' : 'Notizen anzeigen'}
+        <div class="appointment-actions">
+          <button
+            className="toggle-notes-button"
+            onClick={() =>
+              setExpandedAppointmentIds(prev => ({
+                ...prev,
+                [appointment.id]: !isExpanded
+              }))
+            }
+          >
+            {isExpanded ? 'Notizen ausblenden' : 'Notizen anzeigen'}
         </button>
+        </div>
+        
   
         {isExpanded && (
           <div className="notes-section">

@@ -15,7 +15,7 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
   const [newEventModalOpen, setNewEventModalOpen] = useState(false);
   const [newEventDateTime, setNewEventDateTime] = useState(null);
   const [durationMinutes, setDurationMinutes] = useState(60); // Standarddauer
-
+  const [newEventDate, setNewEventDate] = useState('');
 
   const [newEventTitle, setNewEventTitle] = useState(''); // Thema
   const [newEventLocation, setNewEventLocation] = useState('');
@@ -37,30 +37,36 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
 
   const handleSelect = (info) => {
     console.log('🟢 handleSelect ausgeführt:', info); 
-    setNewEventStart(toDatetimeLocal(info.startStr));
-    setNewEventEnd(toDatetimeLocal(info.endStr));
+    setNewEventDateTime(new Date(info.startStr)); // direktes Date-Objekt für DatePicker
+    setNewEventDate(info.startStr.slice(0, 10)); // "YYYY-MM-DD"
     setNewEventModalOpen(true);
   };
 
   const handleSaveAppointment = async () => {
     const errors = {};
-  
-    if (!newEventDateTime) {
-      errors.time = 'Bitte Startdatum und Uhrzeit wählen.';
-    }
-  
-    if (!newEventTitle.trim()) {
-      errors.title = 'Thema ist erforderlich.';
-    }
-  
-    if (!newEventLocation.trim()) {
-      errors.location = 'Ort ist erforderlich.';
-    }
-  
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors);
-      return;
-    }
+
+        // 🔒 Staff muss Kunden auswählen
+        if (user.role === 'staff' && !selectedCustomerId) {
+          errors.customer = 'Bitte einen Kunden auswählen.';
+        }
+
+        if (!newEventDateTime) {
+          errors.time = 'Bitte Startdatum und Uhrzeit wählen.';
+        }
+
+        if (!newEventTitle.trim()) {
+          errors.title = 'Thema ist erforderlich.';
+        }
+
+        if (!newEventLocation.trim()) {
+          errors.location = 'Ort ist erforderlich.';
+        }
+
+        if (Object.keys(errors).length > 0) {
+          setFormErrors(errors);
+          return;
+        }
+
   
     setFormErrors({});
   
@@ -74,7 +80,9 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
         location: newEventLocation,
         start_time: start.toISOString(),
         end_time: end.toISOString(),
+        user_id: user.role === 'staff' ? selectedCustomerId : user.id, // 👈 korrekt
       };
+           
   
       console.log('📤 Sende Buchung:', payload);
   
@@ -92,7 +100,7 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
       }
   
       await fetchEvents();
-      alert("Termin wurde erfolgreich gebucht.");
+      alert("✅ Termin erfolgreich gebucht.");
   
       // Felder zurücksetzen
       setNewEventTitle('');
@@ -106,8 +114,6 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
       setFormErrors({ server: 'Netzwerkfehler beim Speichern des Termins.' });
     }
   };
-  
-  
 
   const handleDatesSet = (arg) => {
     setCalendarTitle(arg.view.title);
@@ -125,16 +131,29 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
       }
   
       const data = await res.json();
-      const eventsFromBackend = data.listData.map(appointment => ({
-        title:
-          (appointment.first_name && appointment.last_name)
-            ? `${appointment.first_name} ${appointment.last_name}`
-            : appointment.email || 'Unbekannter Termin',
-        start: appointment.start_time,
-        end: appointment.end_time,
-        location: appointment.location,
-        thema: appointment.thema,
-      }));      
+      console.log('📡 FULL API-RESPONSE:', data);         // <- API vollständig
+      console.log('📦 listData Dump:', data.listData);     // <- Liste der rohen Termine
+  
+      const eventsFromBackend = data.listData.map((appointment) => {
+        const props = {
+          first_name: appointment.customer_first_name,
+          last_name: appointment.customer_last_name,
+          thema: appointment.title,
+          location: appointment.location
+        };
+      
+        console.log('🧠 extendedProps:', props);
+      
+        return {
+          title: `${appointment.customer_first_name ?? ''} ${appointment.customer_last_name ?? ''}`.trim() || appointment.customer_email,
+          start: appointment.start_time,
+          end: appointment.end_time,
+          extendedProps: props
+        };
+      });
+      
+      
+          
   
       setEvents(eventsFromBackend);
     } catch (error) {
@@ -150,6 +169,7 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
         <span className="close-button" onClick={() => setIsCalendarModalOpen(false)}>&times;</span>
         <h2>{calendarTitle}</h2>
 
+        <div className="calendar-container">
         <FullCalendar
                   ref={calendarRef}
           plugins={[timeGridPlugin, interactionPlugin]}
@@ -157,6 +177,7 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
           locale={deLocale}
           timeZone="local"
           height="auto"
+          stickyHeaderDates={true} 
           headerToolbar={{ left: '', center: 'prev,next today', right: '' }}
           selectable={true}
           selectMirror={true}
@@ -164,7 +185,15 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
           datesSet={handleDatesSet}
           events={events}
           eventClick={onEventClick}
-          dayHeaderFormat={{ weekday: 'short', day: '2-digit' }}
+          dayHeaderContent={(arg) => {
+            const date = arg.date;
+            const day = date.getDate().toString().padStart(2, '0');
+            const weekday = date.toLocaleDateString('de-CH', {
+              weekday: 'short'
+            });
+        
+            return `${weekday} ${day}`; // z. B. "Mo 02"
+          }}
           slotLabelFormat={{
             hour: 'numeric',
             minute: '2-digit',
@@ -175,97 +204,132 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
           allDaySlot={false}
 
           eventContent={(arg) => {
-            const { first_name, last_name } = arg.event.extendedProps;
-            const fullName = first_name && last_name
-              ? `${first_name} ${last_name}`
-              : arg.event.title;
-        
-            return {
-              html: `<div class="fc-event-title">${fullName}</div>`
-            };
+            const { first_name, last_name, thema, location } = arg.event.extendedProps;
+          
+            const fullName = [first_name, last_name].filter(Boolean).join(' ');
+          
+            return (
+              <div className="fc-event-custom">
+                <div>{fullName || 'Termin'}</div>
+                {location && <div>📍 {location}</div>}
+              </div>
+            );
           }}
+          
+          
+          
         />
-
+        </div>
         {newEventModalOpen && (
             <div className="calendar-modal-overlay">
-          <div className="calendar-form">
-            <h3>Neuen Termin erstellen</h3>
+                <div className="calendar-form">
+                  <h3>Neuen Termin erstellen</h3>
 
-            <label>Kunde:</label>
-            <input
-              value={user?.name || 'Unbekannt'}
-              disabled
-              style={{ backgroundColor: '#f0f0f0' }}
-            />
+                        {/* ⛑️ Kundenwahl nur für Mitarbeitende */}
+                        {user?.role === 'staff' && (
+                          <>
+                            <label htmlFor="customer-select">👤 Kunde wählen:</label>
+                            <select
+                              id="customer-select"
+                              className="calendar-input"
+                              value={selectedCustomerId}
+                              onChange={(e) => setSelectedCustomerId(e.target.value)}
+                            >
+                              <option value="">-- Bitte auswählen --</option>
+                              {allCustomers.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.first_name} {c.last_name} ({c.email})
+                                </option>
+                              ))}
+                            </select>
+                            {formErrors.customer && <p className="error-text">{formErrors.customer}</p>}
+                          </>
+                        )}
 
-            <label>Thema:</label>
-            <input
-              value={newEventTitle}
-              onChange={(e) => setNewEventTitle(e.target.value)}
-              placeholder="z. B. Stressmanagement, berufliche Neuorientierung"
-            />
-            {formErrors.title && <p style={{ color: 'red' }}>{formErrors.title}</p>}
+                  {/* Kunde */}
+                  <label>Kunde:</label>
+                  <input
+                    className="calendar-input"
+                    value={`${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user.email}
+                    disabled
+                  />
 
-            <label>Ort:</label>
-            <select
-              value={newEventLocation}
-              onChange={(e) => setNewEventLocation(e.target.value)}
-            >
-              <option value="">-- Bitte wählen --</option>
-              <option value="Zürich-Altstetten">Zürich-Altstetten</option>
-              <option value="Zoom Online Meeting">Zoom Online Meeting</option>
-              <option value="Telefonisches Coaching">Telefonisches Coaching</option>
-            </select>
-            {formErrors.location && <p style={{ color: 'red' }}>{formErrors.location}</p>}
+                  {/* Thema */}
+                  <label>Thema:</label>
+                  <input
+                    className="calendar-input"
+                    value={newEventTitle}
+                    onChange={(e) => setNewEventTitle(e.target.value)}
+                    placeholder="z. B. Stressmanagement"
+                  />
+                  {formErrors.title && <p className="error-text">{formErrors.title}</p>}
 
-            <label>Datum:</label>
-              <input
-                type="date"
-                value={newEventDate}
-                onChange={(e) => setNewEventDate(e.target.value)}
-                className="calendar-input"
-                required
-              />
-              {formErrors.date && <p style={{ color: 'red' }}>{formErrors.date}</p>}
+                  {/* Ort */}
+                  <label>Ort:</label>
+                  <select
+                    className="calendar-input"
+                    value={newEventLocation}
+                    onChange={(e) => setNewEventLocation(e.target.value)}
+                  >
+                    <option value="">-- Bitte wählen --</option>
+                    <option value="Zürich-Altstetten">Zürich-Altstetten</option>
+                    <option value="Zoom Online Meeting">Zoom Online Meeting</option>
+                    <option value="Telefonisches Coaching">Telefonisches Coaching</option>
+                  </select>
+                  {formErrors.location && <p className="error-text">{formErrors.location}</p>}
 
-              <label>Startzeit:</label>
-              <DatePicker
-                selected={newEventDateTime}
-                onChange={(date) => setNewEventDateTime(date)}
-                showTimeSelect
-                timeIntervals={15}
-                dateFormat="Pp"
-                placeholderText="Datum & Zeit wählen"
-                className="calendar-input"
-              />
+                  {/* Datum */}
+                  <label>Datum:</label>
+                  <input
+                    type="date"
+                    className="calendar-input"
+                    value={newEventDate || (newEventDateTime ? newEventDateTime.toISOString().slice(0, 10) : '')}
+                    onChange={(e) => setNewEventDate(e.target.value)}
+                  />
+                  {formErrors.date && <p className="error-text">{formErrors.date}</p>}
 
-              <label>Dauer:</label>
-              <select
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(parseInt(e.target.value))}
-                className="calendar-input"
-              >
-                <option value={30}>30 Minuten</option>
-                <option value={45}>45 Minuten</option>
-                <option value={60}>60 Minuten</option>
-                <option value={90}>90 Minuten</option>
-              </select>
+                  {/* Uhrzeit */}
+                  <label>Startzeit:</label>
+                  <DatePicker
+                    selected={newEventDateTime}
+                    onChange={(date) => setNewEventDateTime(date)}
+                    showTimeSelect
+                    showTimeSelectOnly
+                    timeIntervals={15}
+                    timeCaption="Startzeit"
+                    dateFormat="HH:mm"
+                    className="calendar-input"
+                    placeholderText="Zeit auswählen"
+                  />
 
-              <div className="button-row">
-                <button onClick={handleSaveAppointment}>Speichern</button>
-                <button
-                  onClick={() => {
-                    setNewEventModalOpen(false);
-                    setFormErrors({});
-                  }}
-                  style={{ backgroundColor: '#ccc', color: '#333', marginLeft: '1rem' }}
-                >
-                  Abbrechen
-                </button>
+                  {/* Dauer */}
+                  <label>Dauer:</label>
+                  <select
+                    className="calendar-input"
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(parseInt(e.target.value))}
+                  >
+                    <option value={30}>30 Minuten</option>
+                    <option value={45}>45 Minuten</option>
+                    <option value={60}>60 Minuten</option>
+                    <option value={90}>90 Minuten</option>
+                  </select>
+
+                  {/* Buttons */}
+                  <div className="button-row">
+                    <button onClick={handleSaveAppointment}>Speichern</button>
+                    <button
+                      onClick={() => {
+                        setNewEventModalOpen(false);
+                        setFormErrors({});
+                      }}
+                      className="cancel-button"
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </div>
               </div>
-
-          </div>
-          </div>
         )}
       </div>
     </div>

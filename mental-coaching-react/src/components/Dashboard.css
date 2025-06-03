@@ -107,18 +107,24 @@
   /* Kunden-Termine */
   /* Grundstil für den klappbaren Termin-Container */
   .appointment-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap; /* Wichtig für mobiles Layout */
-    gap: 0.5rem;
-    background-color: #f0f0f0;
-    padding: 0.75rem 1rem;
-    margin-bottom: 0.75rem;
-    border-radius: 0.5rem;
-    border: 1px solid #d3d3d3;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+    background-color: #f9f9f9;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 5px solid #2c3e50;
   }
+  
+  .appointment-header p {
+    margin: 0.2rem 0;
+  }
+  
+  .note-text {
+    background: #fff;
+    padding: 0.5rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  
   
   .appointment-item:hover {
     background-color: #e0e0e0; /* Leicht hellerer Hintergrund beim Überfahren mit der Maus */
@@ -558,6 +564,15 @@
   padding: 0.5rem 1rem;
   height: 40px;
 }
+.calendar-container .fc-header-toolbar {
+  position: sticky;
+  top: 0;
+  background-color: white; /* wichtig, sonst "durchsichtig beim Scrollen" */
+  z-index: 10;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #ccc;
+}
+
 
 .fc .fc-toolbar-title {
   font-size: 1.1rem;
@@ -613,8 +628,16 @@
   background-color: #fff3cd;
 }
 
-/* Sticky Kopfzeile für Wochentage */
-
+/* Sticky Wochentags-Kopfzeile */
+.calendar-container .fc .fc-col-header {
+  position: sticky;
+  top: 140px; /* genau unter Toolbar */
+  background-color: white;
+  z-index: 5;
+}
+.fc-timegrid-header {
+  top: 140px;
+}
 
 .weekday {
   font-size: 0.75rem;
@@ -659,16 +682,13 @@
 }
 
 .modal-content {
-  position: fixed;
-  margin: 5px;
-  background: white;
+  background-color: white;
   padding: 1rem;
-  border-radius: 1rem;
-  max-width: 900px;
+  max-width: 500px;
   width: 100%;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  max-height: 100vh; 
-  overflow-y: auto;
+  border-radius: 8px;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
+  position: relative; /* 🔥 wichtig für position: absolute im Button */
 }
 
 .modal-content .button {
@@ -683,6 +703,44 @@
 
 .modal-content .button:hover {
   color: #000;
+}
+
+.modal-content h2 {
+  margin-bottom: 0.5rem;
+}
+
+.modal-content h3 {
+  margin-bottom: 0.5rem;
+}
+
+.modal-content p {
+  margin-bottom: 0.75rem;
+  font-size: 12px;
+}
+
+.calendar-container {
+  max-height: 60vh;     /* begrenzt Kalender-Höhe */
+  overflow-y: auto;     /* Scrollbar falls nötig */
+  margin-bottom: 1rem;  /* Abstand zum Formular */
+}
+
+.button-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.button-row button {
+  padding: 8px 16px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.button-row button:hover {
+  background-color: #0056b3; /* dunkleres Blau */
 }
 
 .close-button {
@@ -701,47 +759,82 @@
 }
 
 .calendar-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  background-color: #ffffff;
-  padding: 1rem;
-  border-radius: 0.75rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  max-width: 500px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 2rem;
+  max-height: 90vh;   /* Max Höhe anpassen */
   width: 100%;
-  z-index: 1001;
-  margin: 10 auto; /* Zentriert das Formular */
+  max-width: 600px;   /* Breite begrenzen */
+  overflow-y: auto;   /* Inner Scrollbar falls nötig */
+  box-shadow: 0 0 15px rgba(0,0,0,0.2);
+  position: relative;
 }
 
 .calendar-modal-overlay {
   position: fixed;
-  inset: 0; /* top, right, bottom, left = 0 */
-  background-color: rgba(0, 0, 0, 0.4); /* halbtransparentes Overlay */
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000; /* hoch genug, um über Kalender zu liegen */
+  padding: 1rem;
+  overflow: auto;
 }
 
-.calendar-form input[type="datetime-local"] {
-  font-size: 0.95rem;     /* Schriftgröße */
-  color: #333333;         /* Schriftfarbe */
-  font-family: 'Arial', sans-serif; /* Schriftart */
-  padding: 0.5rem;
+.react-datepicker__input-container input {
+  font-family: inherit !important;
+  font-size: 14px;
+  padding: 8px;
   border: 1px solid #ccc;
-  border-radius: 6px;
-  background-color: #f9f9f9; /* Optional: helles Feld */
-  cursor: pointer; /* Zeigt an, dass es klickbar ist */
+  border-radius: 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.react-datepicker__time-container,
+.react-datepicker__time-box,
+.react-datepicker__time-list-item {
+  font-family: inherit !important;
+  font-size: 14px !important;
 }
 
 .calendar-input {
   width: 100%;
-  padding: 0.5rem;
-  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 1rem;
   border: 1px solid #ccc;
-  font-size: 0.95rem;
-  margin-bottom: 0.5rem;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.error-text {
+  color: red;
+  margin: -0.75rem 0 0.75rem;
+  font-size: 12px;
+}
+
+.button-row {
+  display: flex;
+  justify-content: center;
+  gap: 1rem; /* 🔥 DAS sorgt für Abstand */
+  margin-top: 1rem;
+}
+
+.button-row button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.cancel-button {
+  background-color: #ccc;
+  color: #333;
 }
 
 .calendar-form label {
@@ -803,13 +896,15 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.6);
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 9999;
+  padding: 1rem;
+
 }
 
 /* ============================
@@ -838,16 +933,19 @@
     transform: scale(0.98);          /* Klickanimation */
   }
 
-  .appointment-item {
-    flex-direction: row; /* Flexbox für horizontale Anordnung */
-    align-items: center; /* Zentriert die Elemente vertikal */
-    justify-content: space-between; /* Verteilt den Platz zwischen den Elementen */
-  }
-
   .appointment-info {
     flex-direction: column; 
     align-items: center;
   }
+
+  .fc-event-custom {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+  .fc-event-custom strong {
+    font-size: 12px;
+    display: block;
+  }  
   
   @media (max-width: 768px) {
     .appointment-item {
@@ -879,7 +977,7 @@
     }
   
     .calendar-form {
-      padding: 0.5rem;
+      padding: 1rem;
     }
   }
   

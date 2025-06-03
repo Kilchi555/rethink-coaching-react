@@ -52,6 +52,9 @@ const Dashboard = () => {
   const [isAdminLoading, setIsAdminLoading] = useState(false);
   const [isEmployeeLoading, setIsEmployeeLoading] = useState(false);
   const [isCustomerLoading, setIsCustomerLoading] = useState(false);
+  const [allCustomers, setAllCustomers] = useState([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+
 
   // States für Modale
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
@@ -61,7 +64,7 @@ const Dashboard = () => {
   // State und Ref für Notizbearbeitung
   const [editingNoteIds, setEditingNoteIds] = useState({});
   const [expandedAppointmentIds, setExpandedAppointmentIds] = useState({});
-    const clientNoteEditorRef = useRef({}); // Verwende ein Objekt, um Refs für mehrere Editoren zu speichern
+  const clientNoteEditorRef = useRef({}); // Verwende ein Objekt, um Refs für mehrere Editoren zu speichern
 
   // State für "Notiz gespeichert" Meldung
   const [showNoteSavedMessage, setShowNoteSavedMessage] = useState(false);
@@ -109,6 +112,13 @@ const Dashboard = () => {
 
     if (user && isLoggedIn) {
       fetchData();
+  
+      if (user?.role === 'staff') {
+        fetch('/api/all-customers', { credentials: 'include' })
+          .then(res => res.json())
+          .then(setAllCustomers)
+          .catch(err => console.error('❌ Fehler beim Laden der Kunden:', err));
+      }
     }
   }, [loading, isLoggedIn, user, logout, navigate]); // Abhängigkeiten optimiert
 
@@ -273,8 +283,16 @@ const Dashboard = () => {
     const event = info.event;
     const { title, start, end, extendedProps } = event;
   
-    // Datum & Zeit formatieren (deutsche Schreibweise)
-    const formatter = new Intl.DateTimeFormat('de-DE', {
+    const fullName =
+      (extendedProps.first_name && extendedProps.last_name)
+        ? `${extendedProps.first_name} ${extendedProps.last_name}`
+        : title || 'Unbekannter Kunde';
+  
+    // Fallbacks für Datumsprüfung
+    const isValidDate = (date) => date instanceof Date && !isNaN(date);
+  
+    // Formatierer für Datum und Zeit
+    const dateFormatter = new Intl.DateTimeFormat('de-DE', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
@@ -288,9 +306,11 @@ const Dashboard = () => {
     });
   
     const selected = {
-      title: title || 'Unbekannter Kunde',
-      startFormatted: formatter.format(start),
-      timeRange: `${timeFormatter.format(start)} – ${timeFormatter.format(end)}`,
+      fullName,
+      dateFormatted: isValidDate(start) ? dateFormatter.format(start) : 'Unbekanntes Datum',
+      timeRange: (isValidDate(start) && isValidDate(end))
+        ? `${timeFormatter.format(start)} – ${timeFormatter.format(end)}`
+        : 'Unbekannte Zeit',
       location: extendedProps.location || 'Nicht angegeben',
       thema: extendedProps.thema || 'Kein Thema angegeben',
     };
@@ -299,7 +319,7 @@ const Dashboard = () => {
   
     setSelectedAppointment(selected);
     setIsAppointmentDetailsModalOpen(true);
-  };
+  };  
   
   // --- Termin-Item Render Funktion ---
   const renderAppointmentItem = (appointment, type) => {
@@ -308,20 +328,50 @@ const Dashboard = () => {
     const isClientNoteEditable = user?.role === 'customer';
   
     const startDate = new Date(appointment.start_time);
-    const endDate = new Date(appointment.end_time);
+    const durationMinutes = Math.floor((new Date(appointment.end_time) - startDate) / 60000);
+  
+    const formattedDate = startDate.toLocaleDateString('de-DE', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  
+    const formattedTime = startDate.toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   
     const clientNoteContent = appointment.client_note || 'Keine Notiz vorhanden.';
     const staffNoteContent = appointment.staff_note || 'Keine Notiz vorhanden.';
   
     return (
       <div key={appointment.id} className={`appointment-item ${isExpanded ? 'expanded' : ''}`}>
-        <div className="appointment-header">
-          <strong>{appointment.title || 'Unbenannter Termin'}</strong><br />
-          <div class="appointment-info">
-            {startDate.toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} – {endDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-          </div>
-        </div>
-        <div class="appointment-actions">
+    <div className="appointment-header">
+      <strong style={{ fontSize: '1.1em' }}>
+        {appointment.title || '🗓️ Termin'}
+      </strong>
+
+      {/* Datum + Startzeit */}
+      <p>
+        {formattedDate} – <strong>{formattedTime} Uhr</strong>
+      </p>
+
+      {/* Dauer */}
+      <p>Dauer: {durationMinutes} Minuten</p>
+
+      {/* Ort */}
+      {appointment.location && (
+        <p>📍 <strong>Ort:</strong> {appointment.location}</p>
+      )}
+
+      {/* Mitarbeiter */}
+      {(appointment.staff_first_name || appointment.staff_last_name) && (
+        <p>👨‍🏫 <strong>Coach:</strong> {(appointment.staff_first_name || '') + ' ' + (appointment.staff_last_name || '')}</p>
+      )}
+    </div>
+  
+        <div className="appointment-actions">
           <button
             className="toggle-notes-button"
             onClick={() =>
@@ -332,9 +382,8 @@ const Dashboard = () => {
             }
           >
             {isExpanded ? 'Notizen ausblenden' : 'Notizen anzeigen'}
-        </button>
+          </button>
         </div>
-        
   
         {isExpanded && (
           <div className="notes-section">
@@ -378,17 +427,13 @@ const Dashboard = () => {
         )}
       </div>
     );
-  };
-  
+  };  
 
   const handleDatesSet = (arg) => {
     // Diese Funktion wird aufgerufen, wenn der Kalender sich ändert (Monat/Woche vor/zurück)
     if (calendarTitleRef.current) {
       calendarTitleRef.current.textContent = arg.view.title;
     }
-    // Hier kannst du die Logik für die Sticky Header Datumssynchronisation einbauen
-    // Da dies in React komplexer ist (DOM-Manipulation außerhalb des Renders),
-    // würde man dies idealerweise in einer eigenen, dedizierten Kalenderkomponente lösen.
   };
 
   
@@ -450,26 +495,47 @@ const Dashboard = () => {
 
         {/* Mitarbeiter-Bereich */}
         {user?.role === 'staff' && (
-          <section id="employee-section" className="dashboard-section">
-            <h2>Mitarbeiter-Bereich</h2>
-            {isEmployeeLoading ? (
-              <LoadingSpinner message="Lade Mitarbeiter-Daten..." />
-            ) : (
-              <>
-                <p id="employee-statistics">
-                  {employeeStats ? `Anzahl der erledigten Sitzungen: ${employeeStats.completedSessions}` : 'Fehler beim Laden der Mitarbeiter-Daten.'}
-                </p>
-                <button
+            <section id="employee-section" className="dashboard-section">
+              <h2>Mitarbeiter-Bereich</h2>
+
+              {isEmployeeLoading ? (
+                <LoadingSpinner message="Lade Mitarbeiter-Daten..." />
+              ) : (
+                <>
+                  <p id="employee-statistics">
+                    {employeeStats
+                      ? `Anzahl der erledigten Sitzungen: ${employeeStats.completedSessions}`
+                      : 'Fehler beim Laden der Mitarbeiter-Daten.'}
+                  </p>
+
+                  <div className="customer-selection">
+                    <label htmlFor="customer-select">👤 Kunde wählen:</label>
+                    <select
+                      id="customer-select"
+                      value={selectedCustomerId}
+                      onChange={(e) => setSelectedCustomerId(e.target.value)}
+                    >
+                      <option value="">-- Kunde wählen --</option>
+                      {allCustomers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.first_name} {c.last_name} ({c.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
                     id="open-calendar-button"
                     className="open-calendar-button"
                     onClick={() => setIsCalendarModalOpen(true)}
+                    disabled={!selectedCustomerId}
                   >
-                    Termin reservieren
-                </button>
-              </>
-            )}
-          </section>
-        )}
+                    📅 Termin für Kunde reservieren
+                  </button>
+                </>
+              )}
+            </section>
+          )}
 
         {/* Kundenbereich */}
         {user?.role === 'customer' && (
@@ -522,7 +588,7 @@ const Dashboard = () => {
 
         {/* Calendar Modal */}
         {isCalendarModalOpen && (
-          <CalendarComponent setIsCalendarModalOpen={setIsCalendarModalOpen} user={user}   onEventClick={handleEventClick}
+          <CalendarComponent setIsCalendarModalOpen={setIsCalendarModalOpen} user={user}   onEventClick={handleEventClick}   selectedCustomerId={selectedCustomerId}
           />
         )}
 
@@ -530,14 +596,20 @@ const Dashboard = () => {
   <div className="modal-overlay">
     <div className="modal-content">
       <h3>📅 Termin-Details</h3>
-      <p><strong>Kunde:</strong> {selectedAppointment.title}</p>
-      <p><strong>Zeit:</strong> {new Date(selectedAppointment.start).toLocaleString()} – {new Date(selectedAppointment.end).toLocaleString()}</p>
+
+      <p><strong>Kunde:</strong> {selectedAppointment.fullName}</p>
+      <p><strong>Datum:</strong> {selectedAppointment.dateFormatted}</p>
+      <p><strong>Zeit:</strong> {selectedAppointment.timeRange}</p>
       <p><strong>Ort:</strong> {selectedAppointment.location}</p>
       <p><strong>Thema:</strong> {selectedAppointment.thema}</p>
-      <button onClick={() => setIsAppointmentDetailsModalOpen(false)}>Schliessen</button>
+
+      <div className="button-row">
+        <button onClick={() => setIsAppointmentDetailsModalOpen(false)}>Schliessen</button>
+      </div>
     </div>
   </div>
 )}
+
 
 
       </main>

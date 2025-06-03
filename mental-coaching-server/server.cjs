@@ -205,14 +205,19 @@ app.get('/api/past-appointments', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        a.id,
-        a.title,
-        a.start_time,
-        a.end_time,
-        u.email AS customer_email,
-        s.email AS staff_email,
-        cn.note AS client_note,
-        sn.note AS staff_note
+      a.id,
+      a.title,
+      a.start_time,
+      a.end_time,
+      a.location,
+      u.email AS customer_email,
+      u.first_name AS customer_first_name,
+      u.last_name AS customer_last_name,
+      s.email AS staff_email,
+      s.first_name AS staff_first_name,
+      s.last_name AS staff_last_name,
+      cn.note AS client_note,
+      sn.note AS staff_note
       FROM appointments a
       LEFT JOIN users u ON u.id = a.user_id
       LEFT JOIN users s ON s.id = a.staff_id
@@ -233,12 +238,26 @@ app.get('/api/past-appointments', async (req, res) => {
       start: row.start_time,
       end: row.end_time,
       extendedProps: {
-        customerEmail: row.customer_email,
-        staffEmail: row.staff_email,
-        clientNote: row.client_note,
-        staffNote: row.staff_note,
-      }
+        thema: row.title,
+        ort: row.location,
+        kunde: {
+          email: row.customer_email,
+          name: `${row.customer_first_name} ${row.customer_last_name}`
+        },
+        mitarbeiter: {
+          email: row.staff_email,
+          name: `${row.staff_first_name} ${row.staff_last_name}`
+        },
+        notizen: {
+          kunde: row.client_note,
+          staff: row.staff_note
+        }
+      },
+      isPast: true
     }));
+
+    console.log('🔥 result.rows Dump:');
+    console.log(JSON.stringify(result.rows, null, 2));
 
     return res.status(200).json({ calendarEvents: calendarEvents, listData: rawAppointments });
 
@@ -268,9 +287,13 @@ app.get('/api/future-appointments', async (req, res) => {
     a.end_time,
     a.location,
     u.email AS customer_email,
+    u.first_name AS customer_first_name,
+    u.last_name AS customer_last_name,
     s.email AS staff_email,
+    s.first_name AS staff_first_name,
+    s.last_name AS staff_last_name,
     cn.note AS client_note,
-    sn.note AS staff_note
+    sn.note AS staff_note  
   FROM appointments a
   LEFT JOIN users u ON u.id = a.user_id
   LEFT JOIN users s ON s.id = a.staff_id
@@ -291,11 +314,20 @@ app.get('/api/future-appointments', async (req, res) => {
       start: row.start_time,
       end: row.end_time,
       extendedProps: {
-        customerEmail: row.customer_email,
-        staffEmail: row.staff_email,
-        clientNote: row.client_note,
-        staffNote: row.staff_note,
-        location: row.location
+        thema: row.title,
+        ort: row.location,
+        kunde: {
+          email: row.customer_email,
+          name: `${row.customer_first_name} ${row.customer_last_name}`
+        },
+        mitarbeiter: {
+          email: row.staff_email,
+          name: `${row.staff_first_name} ${row.staff_last_name}`
+        },
+        notizen: {
+          kunde: row.client_note,
+          staff: row.staff_note
+        }
       },
       isPast: new Date(row.end_time) < new Date()
     }));
@@ -508,33 +540,70 @@ app.post('/api/appointment/:appointmentId/note', async (req, res) => {
 });
 
 app.post('/api/book-appointment', async (req, res) => {
-  const { start_time, end_time } = req.body;
-  const userId = req.session.userId;
+  const staffId = req.session.userId;
 
-  if (!userId) return res.status(401).json({ error: 'Nicht angemeldet' });
+  if (!staffId) return res.status(401).json({ error: 'Nicht authentifiziert.' });
+
+  const {
+    start_time,
+    end_time,
+    title,
+    thema,
+    location,
+    user_id
+  } = req.body;
+
+  if (!start_time || !end_time || !thema || !location) {
+    return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
+  }
 
   try {
-    const conflict = await pool.query(
-      'SELECT * FROM appointments WHERE start_time < $2 AND end_time > $1',
-      [start_time, end_time]
-    );
+    const roleResult = await pool.query('SELECT role FROM users WHERE id = $1', [staffId]);
+    const role = roleResult.rows[0]?.role;
 
-    if (conflict.rows.length > 0) {
-      return res.status(409).json({ error: 'Zeitraum ist bereits gebucht' });
+    if (!role) {
+      return res.status(403).json({ error: 'Benutzerrolle konnte nicht ermittelt werden.' });
     }
 
-    await pool.query(
-      'INSERT INTO appointments (user_id, start_time, end_time) VALUES ($1, $2, $3)',
-      [userId, start_time, end_time]
-    );
+    let customerId = staffId; // Standard: Nutzer ist Kunde selbst
+    if (role === 'staff' && user_id) {
+      customerId = user_id;
+    }
 
-    res.status(200).json({ message: 'Termin gebucht' });
+    await pool.query(`
+      INSERT INTO appointments (user_id, staff_id, start_time, end_time, title, location)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [customerId, staffId, start_time, end_time, thema, location]);
+
+    console.log(`📅 Neuer Termin: [${thema}] ${start_time} - ${end_time} @ ${location} (Kunde: ${customerId}, Staff: ${staffId})`);
+
+    res.status(200).json({ message: 'Termin erfolgreich gebucht.' });
+
   } catch (err) {
-    console.error(err);
+    console.error('❌ Fehler beim Speichern:', err);
     res.status(500).json({ error: 'Fehler beim Speichern' });
   }
-  console.log('📦 Neuer Termin gespeichert:', newAppointment);
 });
+
+
+
+app.get('/api/all-customers', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'staff') {
+    return res.status(401).json({ error: 'Nicht autorisiert.' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, first_name, last_name, email FROM users WHERE role = 'customer' ORDER BY last_name`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler beim Abrufen aller Kunden:', err);
+    res.status(500).json({ error: 'Fehler beim Abrufen der Kunden' });
+  }
+});
+
+
 
 // Fuge diesen Handler zu deinem Express-Server hinzu
 app.post('/api/logout', (req, res) => {

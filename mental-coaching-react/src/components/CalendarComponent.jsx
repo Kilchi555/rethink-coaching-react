@@ -171,58 +171,66 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
       <div className="modal-content">
         <span className="close-button" onClick={() => setIsCalendarModalOpen(false)}>&times;</span>
         <h2>{calendarTitle}</h2>
+        
+        {/* Die Buttons direkt hier */}
+        <div className="calendar-toolbar">
+          <button onClick={handleSaveChanges} disabled={!hasChanges}>
+            💾 Änderungen speichern
+          </button>
+          <button onClick={handleReset} disabled={!hasChanges}>
+            ↩️ Rückgängig
+          </button>
+          <p>📋 Klick auf Termin = kopieren → dann auf Kalenderdatum klicken zum Einfügen</p>
+        </div>
 
         <div className="calendar-container">
-        <FullCalendar
-                  ref={calendarRef}
-          plugins={[timeGridPlugin, interactionPlugin]}
-          initialView="timeGridWeek"
-          locale={deLocale}
-          timeZone="local"
-          height="auto"
-          stickyHeaderDates={true} 
-          headerToolbar={{ left: '', center: 'prev,next today', right: '' }}
-          selectable={true}
-          selectMirror={true}
-          select={handleSelect}
-          datesSet={handleDatesSet}
-          events={events}
-          eventClick={onEventClick}
-          dayHeaderContent={(arg) => {
-            const date = arg.date;
-            const day = date.getDate().toString().padStart(2, '0');
-            const weekday = date.toLocaleDateString('de-CH', {
-              weekday: 'short'
-            });
-        
-            return `${weekday} ${day}`; // z. B. "Mo 02"
-          }}
-          slotLabelFormat={{
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: false
-          }}
-          slotMinTime="06:00:00"
-          slotMaxTime="22:00:00"
-          allDaySlot={false}
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[timeGridPlugin, interactionPlugin]}
+              initialView="timeGridWeek"
+              locale={deLocale}
+              timeZone="local"
+              height="auto"
+              stickyHeaderDates={true}
+              headerToolbar={{ left: '', center: 'prev,next today', right: '' }}
+              selectable={true}
+              editable={true}
+              selectMirror={true}
+              select={handleSelect}
+              datesSet={handleDatesSet}
+              events={events}
+              eventClick={onEventClick}
+              eventDrop={onEventDrop}
+              dateClick={onDateClick}
+              dayHeaderContent={(arg) => {
+                const date = arg.date;
+                const day = date.getDate().toString().padStart(2, '0');
+                const weekday = date.toLocaleDateString('de-CH', {
+                  weekday: 'short',
+                });
+                return `${weekday} ${day}`; // z. B. "Mo 02"
+              }}
+              slotLabelFormat={{
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: false,
+              }}
+              slotMinTime="06:00:00"
+              slotMaxTime="22:00:00"
+              allDaySlot={false}
+              eventContent={(arg) => {
+                const { first_name, last_name, thema, location } = arg.event.extendedProps;
+                const fullName = [first_name, last_name].filter(Boolean).join(' ');
+                return (
+                  <div className="fc-event-custom">
+                    <div className="event-name">{fullName || 'Termin'}</div>
+                    {location && <div className="event-subline">📍 {location}</div>}
+                  </div>
+                );
+              }}
+            />
+          </div>
 
-          eventContent={(arg) => {
-            const { first_name, last_name, thema, location } = arg.event.extendedProps;
-          
-            const fullName = [first_name, last_name].filter(Boolean).join(' ');
-          
-            return (
-              <div className="fc-event-custom">
-                <div className="event-name">{fullName || 'Termin'}</div>
-                {location && <div className="event-subline">📍 {location}</div>}
-              </div>
-            );
-          }}
-          
-          
-          
-        />
-        </div>
         {newEventModalOpen && (
             <div className="calendar-modal-overlay">
                 <div className="calendar-form">

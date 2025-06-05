@@ -1,58 +1,63 @@
+// routes/adminRoutes.js
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const pool = require('../db'); // DB-Verbindung
 
-// Middleware to check admin
-const requireAdmin = async (req, res, next) => {
-  const result = await pool.query('SELECT role FROM users WHERE id = $1', [req.session.userId]);
-  if (result.rows[0]?.role !== 'admin') {
-    return res.status(403).json({ error: 'Zugriff verweigert' });
+// Admin: Alle Nutzer abrufen
+router.get('/users', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, first_name, last_name, role FROM users');
+    res.json(result.rows);
+  } catch (err) {
+    console.error('❌ Fehler beim Abrufen der Nutzer:', err);
+    res.status(500).send('Serverfehler');
   }
-  next();
-};
-
-router.get('/users', requireAdmin, async (req, res) => {
-  const result = await pool.query('SELECT id, email, first_name, last_name, role FROM users');
-  res.json(result.rows);
 });
 
-router.put('/users/:id/role', requireAdmin, async (req, res) => {
-  const { role } = req.body;
-  await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, req.params.id]);
-  res.json({ success: true });
+// Admin: Neuen Termin anlegen
+router.post('/appointments', async (req, res) => {
+  const { user_id, staff_id, start_time, end_time, title, location } = req.body;
+  try {
+    const result = await pool.query(
+      `INSERT INTO appointments (user_id, staff_id, start_time, end_time, title, location)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [user_id, staff_id, start_time, end_time, title, location]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('❌ Fehler beim Erstellen des Termins:', err);
+    res.status(500).send('Serverfehler');
+  }
 });
 
-router.delete('/users/:id', requireAdmin, async (req, res) => {
-  await pool.query('DELETE FROM users WHERE id = $1', [req.params.id]);
-  res.json({ success: true });
+// Admin: Termin aktualisieren
+router.put('/appointments/:id', async (req, res) => {
+  const { id } = req.params;
+  const { start_time, end_time, title, location, user_id, staff_id } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE appointments
+       SET start_time = $1, end_time = $2, title = $3, location = $4, user_id = $5, staff_id = $6
+       WHERE id = $7 RETURNING *`,
+      [start_time, end_time, title, location, user_id, staff_id, id]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('❌ Fehler beim Aktualisieren:', err);
+    res.status(500).send('Fehler beim Aktualisieren');
+  }
 });
 
-router.get('/appointments', requireAdmin, async (req, res) => {
-  const result = await pool.query(`
-    SELECT a.*, u1.first_name AS customer_first_name, u2.first_name AS staff_first_name
-    FROM appointments a
-    LEFT JOIN users u1 ON a.user_id = u1.id
-    LEFT JOIN users u2 ON a.staff_id = u2.id
-    ORDER BY a.start_time DESC
-  `);
-  res.json(result.rows);
-});
-
-router.get('/stats', requireAdmin, async (req, res) => {
-  const userCount = await pool.query('SELECT COUNT(*) FROM users');
-  const appointmentCount = await pool.query('SELECT COUNT(*) FROM appointments');
-  res.json({ users: userCount.rows[0].count, appointments: appointmentCount.rows[0].count });
-});
-
-router.get('/notes', requireAdmin, async (req, res) => {
-  const result = await pool.query(`
-    SELECT a.id, a.client_note, a.employee_note, u.first_name, u.last_name
-    FROM appointments a
-    LEFT JOIN users u ON a.user_id = u.id
-    WHERE a.client_note IS NOT NULL OR a.employee_note IS NOT NULL
-    ORDER BY a.id DESC LIMIT 30
-  `);
-  res.json(result.rows);
+// Admin: Termin löschen
+router.delete('/appointments/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM appointments WHERE id = $1', [id]);
+    res.sendStatus(204);
+  } catch (err) {
+    console.error('❌ Fehler beim Löschen:', err);
+    res.status(500).send('Fehler beim Löschen');
+  }
 });
 
 module.exports = router;

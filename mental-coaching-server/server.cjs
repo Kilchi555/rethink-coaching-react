@@ -8,6 +8,9 @@ const session = require('express-session');
 const path = require('path');
 const cors = require('cors');
 const adminRoutes = require('./routes/adminRoutes');
+const customerRoutes = require('./routes/customerRoutes');
+const staffRoutes = require('./routes/staffRoutes');
+
 
 
 const app = express();
@@ -49,6 +52,9 @@ app.use(session({
   }
 }));
 app.use('/api/admin', adminRoutes);
+app.use('/api/customer', customerRoutes);
+app.use('/api/staff', staffRoutes);
+
 
 console.log('*** Vor dem Definieren von buildPath ***');
 // Definiere den Pfad zu deinem Frontend-Build-Verzeichnis

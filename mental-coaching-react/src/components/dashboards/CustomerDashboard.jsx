@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import './Dashboard.css'; 
 import CalendarComponent from '../CalendarComponent';
-import { AuthContext } from '../../context/AuthContext';
 
 
 
@@ -80,6 +79,11 @@ const Dashboard = () => {
   const [newEventLocation, setNewEventLocation] = useState('');
   const [newEventStart, setNewEventStart] = useState('');
   const [newEventEnd, setNewEventEnd] = useState('');
+
+  const [appointments, setAppointments] = useState([]);
+  const [copiedAppointment, setCopiedAppointment] = useState(null);
+  const [originalAppointments, setOriginalAppointments] = useState([]);
+  const [hasChanges, setHasChanges] = useState(false);
   
 
 
@@ -119,6 +123,14 @@ const Dashboard = () => {
           .catch(err => console.error('❌ Fehler beim Laden der Kunden:', err));
       }
     }
+
+    fetch('/api/future-appointments', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        setAppointments(data.listData || []);
+        setOriginalAppointments(data.listData || []);
+      });
+
   }, [loading, isLoggedIn, user, logout, navigate]); // Abhängigkeiten optimiert
 
 
@@ -128,6 +140,100 @@ const Dashboard = () => {
     localStorage.clear();
     navigate('/login');
   };
+
+  const handleEventDrop = (info) => {
+    const id = parseInt(info.event.id);
+    const updated = appointments.map(app =>
+      app.id === id
+        ? {
+            ...app,
+            start_time: info.event.start.toISOString(),
+            end_time: info.event.end.toISOString(),
+          }
+        : app
+    );
+    setAppointments(updated);
+    setHasChanges(true);
+  };
+  
+  const handleSaveChanges = async () => {
+    try {
+      for (const app of appointments) {
+        const original = originalAppointments.find(a => a.id === app.id);
+        if (
+          !original ||
+          original.start_time !== app.start_time ||
+          original.end_time !== app.end_time
+        ) {
+          await fetch(`/api/appointments/${app.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              start_time: app.start_time,
+              end_time: app.end_time,
+            }),
+          });
+        }
+      }
+      alert('Änderungen gespeichert!');
+      setOriginalAppointments(appointments);
+      setHasChanges(false);
+    } catch (err) {
+      alert('Fehler beim Speichern: ' + err.message);
+    }
+  };
+  
+  const handleReset = () => {
+    setAppointments(originalAppointments);
+    setHasChanges(false);
+  };
+  
+  const handleCopy = (eventId) => {
+    const found = appointments.find(a => a.id === eventId);
+    if (found) {
+      setCopiedAppointment({
+        ...found,
+        id: null,
+        start_time: '',
+        end_time: '',
+      });
+      alert('Termin kopiert! Du kannst ihn nun einfügen.');
+    }
+  };
+  
+
+  const handleDateClick = (info) => {
+    if (!copiedAppointment) return;
+    const duration = new Date(copiedAppointment.end_time) - new Date(copiedAppointment.start_time);
+    const start = new Date(info.date);
+    const end = new Date(start.getTime() + duration);
+
+    const newApp = {
+      ...copiedAppointment,
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      id: Math.random().toString(36).substr(2, 9)
+    };
+
+    setAppointments([...appointments, newApp]);
+    setHasChanges(true);
+    setCopiedAppointment(null);
+  };
+
+  const events = appointments.map((a) => ({
+    id: a.id,
+    title: a.title || 'Termin',
+    start: a.start_time,
+    end: a.end_time,
+    extendedProps: {
+      first_name: a.customer_first_name,
+      last_name: a.customer_last_name,
+      thema: a.title,
+      location: a.location,
+    }
+  }));
+  
 
   // --- Admin Statistiken ---
   const fetchAdminStatistics = async () => {
@@ -591,7 +697,19 @@ const Dashboard = () => {
 
         {/* Calendar Modal */}
         {isCalendarModalOpen && (
-          <CalendarComponent setIsCalendarModalOpen={setIsCalendarModalOpen} user={user}   onEventClick={handleEventClick}   selectedCustomerId={selectedCustomerId}
+          <CalendarComponent 
+          setIsCalendarModalOpen={setIsCalendarModalOpen} user={user}   
+          onEventClick={(info) => {
+            handleCopy(info.event.id);
+            handleEventClick(info); // falls du z. B. Modal öffnen willst
+          }}          
+          selectedCustomerId={selectedCustomerId}
+          events={events}
+          calendarRef={calendarRef}
+          onEventDrop={handleEventDrop}
+          onDateClick={handleDateClick}
+          handleSelect={handleSelect}
+          handleDatesSet={handleDatesSet}
           />
         )}
 

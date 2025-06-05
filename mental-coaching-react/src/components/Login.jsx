@@ -1,5 +1,5 @@
 // src/components/Login.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Login.css';
@@ -9,9 +9,16 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
-  const { login } = useAuth();
+  const { login, isLoggedIn, user } = useAuth();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (isLoggedIn && user?.role) {
+      console.log(`🔁 Bereits eingeloggt → redirect nach /${user.role}`);
+      navigate(`/${user.role}`);
+    }
+  }, [isLoggedIn, user, navigate]);
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -33,7 +40,7 @@ function Login() {
         credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
-
+      
       const data = await response.json();
 
       if (response.ok) {
@@ -47,8 +54,9 @@ function Login() {
 
         login(userId, userEmail, role);
         setSuccessMessage(data.message || 'Login erfolgreich!');
-        navigate('/dashboard');
-      } else {
+        console.log(`→ Navigiere zu /${role}`);
+        navigate(`/${role}`);
+              } else {
         console.error('❌ Login fehlgeschlagen:', data.error);
         setError(data.error || 'Login fehlgeschlagen. Bitte versuche es erneut.');
       }

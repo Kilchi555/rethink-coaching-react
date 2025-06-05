@@ -7,6 +7,8 @@ const { Pool } = require('pg');
 const session = require('express-session');
 const path = require('path');
 const cors = require('cors');
+const adminRoutes = require('./routes/adminRoutes');
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -46,6 +48,7 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
+app.use('/api/admin', adminRoutes);
 
 console.log('*** Vor dem Definieren von buildPath ***');
 // Definiere den Pfad zu deinem Frontend-Build-Verzeichnis
@@ -603,6 +606,52 @@ app.get('/api/all-customers', async (req, res) => {
   }
 });
 
+// Middleware
+const isAdmin = (req, res, next) => {
+  if (req.session?.user?.role === 'admin') return next();
+  return res.status(403).json({ error: 'Admin only' });
+};
+
+// GET /api/admin/users
+app.get('/api/admin/users', isAdmin, async (req, res) => {
+  const users = await db.all('SELECT id, name, email, role FROM users');
+  res.json(users);
+});
+
+// GET /api/admin/appointments
+app.get('/api/admin/appointments', isAdmin, async (req, res) => {
+  const appointments = await db.all(`
+    SELECT a.*, u.name AS customer_name, s.name AS staff_name
+    FROM appointments a
+    JOIN users u ON a.customer_id = u.id
+    JOIN users s ON a.staff_id = s.id
+    ORDER BY a.date DESC
+  `);
+  res.json(appointments);
+});
+
+// GET /api/admin/stats
+app.get('/api/admin/stats', isAdmin, async (req, res) => {
+  const [users, appointments, notes] = await Promise.all([
+    db.get('SELECT COUNT(*) as count FROM users'),
+    db.get('SELECT COUNT(*) as count FROM appointments'),
+    db.get('SELECT COUNT(*) as count FROM notes')
+  ]);
+  res.json({ users: users.count, appointments: appointments.count, notes: notes.count });
+});
+
+// GET /api/admin/notes
+app.get('/api/admin/notes', isAdmin, async (req, res) => {
+  const notes = await db.all(`
+    SELECT n.*, u.name AS customer_name, s.name AS staff_name
+    FROM notes n
+    JOIN users u ON n.customer_id = u.id
+    JOIN users s ON n.staff_id = s.id
+    ORDER BY n.created_at DESC
+  `);
+  res.json(notes);
+});
+
 
 
 // Fuge diesen Handler zu deinem Express-Server hinzu
@@ -622,6 +671,15 @@ app.post('/api/logout', (req, res) => {
         return res.status(200).json({ message: 'Bereits abgemeldet.' });
     }
 });
+
+// routes/logRoutes.js
+app.post('/api/log-unrecognized-role', async (req, res) => {
+  const { role, user, timestamp } = req.body;
+  console.log('📝 Unrecognized role logged:', { role, user, timestamp });
+  res.status(200).json({ success: true });
+});
+
+
 
 // WICHTIGER FALLBACK-HANDLER FUR REACT ROUTER
 // Dieser Handler muss der ALLERLETZTE sein, NACH ALLEN API-Endpunkten!

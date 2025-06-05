@@ -6,6 +6,9 @@ import interactionPlugin from '@fullcalendar/interaction';
 import deLocale from '@fullcalendar/core/locales/de';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import { registerLocale } from "react-datepicker";
+import de from 'date-fns/locale/de';
+registerLocale('de', de);
 
 
 const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
@@ -210,8 +213,8 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
           
             return (
               <div className="fc-event-custom">
-                <div>{fullName || 'Termin'}</div>
-                {location && <div>📍 {location}</div>}
+                <div className="event-name">{fullName || 'Termin'}</div>
+                {location && <div className="event-subline">📍 {location}</div>}
               </div>
             );
           }}
@@ -298,8 +301,10 @@ const CalendarComponent = ({ setIsCalendarModalOpen, user, onEventClick }) => {
                     timeIntervals={15}
                     timeCaption="Startzeit"
                     dateFormat="HH:mm"
+                    timeFormat="HH:mm"              // ✅ Wichtig! Verhindert AM/PM
                     className="calendar-input"
                     placeholderText="Zeit auswählen"
+                    locale="de"
                   />
 
                   {/* Dauer */}

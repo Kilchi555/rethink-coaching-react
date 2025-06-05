@@ -522,3 +522,19 @@ section[id] { /* Wählt alle section-Elemente mit einer ID */
     font-size: 1.2rem; /* Slightly smaller icons */
   }
 }
+
+.dashboard-section h3 {
+  font-size: 1.2rem;
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.dashboard-section ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.dashboard-section li {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #eee;
+}

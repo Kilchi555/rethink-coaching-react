@@ -1,6 +1,7 @@
 // App.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
 
 import Header from './components/Header'; // <--- dein eigener Header
 import Footer from './components/Footer';
@@ -12,7 +13,17 @@ import TestimonialsSection from './components/TestimonialsSection';
 import FAQSection from './components/FAQSection';
 
 import Login from './components/Login';
-import Dashboard from './components/Dashboard';
+import Unauthorized from './components/Unauthorized';
+import ProtectedRoute from './components/ProtectedRoute';
+import SwitchDashboard from './components/dashboards/SwitchDashboard';
+import RoleError from './components/RoleError';
+
+
+
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
+const StaffDashboard = lazy(() => import('./components/dashboards/StaffDashboard'));
+const CustomerDashboard = lazy(() => import('./components/dashboards/CustomerDashboard'));
+
 
 function App() {
   const location = useLocation();
@@ -33,7 +44,7 @@ function App() {
     <div>
       {/* Nur auf der Startseite anzeigen */}
       {location.pathname === '/' && <Header />}
-
+      <Suspense fallback={<div>⏳ Lädt Dashboard…</div>}>
       <Routes>
         <Route path="/" element={
           <>
@@ -45,9 +56,28 @@ function App() {
           </>
         } />
         <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<SwitchDashboard />} />
+        <Route path="/unauthorized" element={<Unauthorized />} />
+        <Route path="/role-error" element={<RoleError />} />
+        <Route
+        path="/customer"
+        element={
+          <ProtectedRoute requiredRole="customer">
+            <CustomerDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/staff" element={<StaffDashboard />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
-
+      </Suspense>
       <Footer />
     </div>
   );

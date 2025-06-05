@@ -1,11 +1,10 @@
 // src/components/Dashboard.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import './Dashboard.css'; 
-import CalendarComponent from './CalendarComponent';
-import { useContext } from 'react';
-import { AuthContext } from '../context/AuthContext';
+import CalendarComponent from '../CalendarComponent';
+import { AuthContext } from '../../context/AuthContext';
 
 
 
@@ -347,29 +346,33 @@ const Dashboard = () => {
   
     return (
       <div key={appointment.id} className={`appointment-item ${isExpanded ? 'expanded' : ''}`}>
-    <div className="appointment-header">
-      <strong style={{ fontSize: '1.1em' }}>
-        {appointment.title || '🗓️ Termin'}
-      </strong>
-
-      {/* Datum + Startzeit */}
-      <p>
-        {formattedDate} – <strong>{formattedTime} Uhr</strong>
-      </p>
-
-      {/* Dauer */}
-      <p>Dauer: {durationMinutes} Minuten</p>
-
-      {/* Ort */}
-      {appointment.location && (
-        <p>📍 <strong>Ort:</strong> {appointment.location}</p>
-      )}
-
-      {/* Mitarbeiter */}
-      {(appointment.staff_first_name || appointment.staff_last_name) && (
-        <p>👨‍🏫 <strong>Coach:</strong> {(appointment.staff_first_name || '') + ' ' + (appointment.staff_last_name || '')}</p>
-      )}
-    </div>
+          <div className="appointment-info">
+          <div className="info-field">
+              <strong style={{ fontSize: '1.1em' }}>
+                {appointment.title || 'Termin'}
+              </strong>
+            </div>
+              <div className="info-field">
+              {/* Datum + Startzeit */}
+              <p>🗓️<strong>Datum | Zeit:</strong>{formattedDate} | {formattedTime} Uhr </p>
+              </div>
+              <div className="info-field">
+              {/* Dauer */}
+              <p>🕒 <strong>Dauer:</strong>{durationMinutes} Minuten</p>
+              </div>
+              <div className="info-field">
+              {/* Ort */}
+              {appointment.location && (
+                <p>📍 <strong>Ort:</strong> {appointment.location}</p>
+              )}
+              </div>
+              <div className="info-field">
+              {/* Mitarbeiter */}
+              {(appointment.staff_first_name || appointment.staff_last_name) && (
+                <p>👨‍🏫 <strong>Coach:</strong> {(appointment.staff_first_name || '') + ' ' + (appointment.staff_last_name || '')}</p>
+              )}
+              </div>
+            </div>
   
         <div className="appointment-actions">
           <button

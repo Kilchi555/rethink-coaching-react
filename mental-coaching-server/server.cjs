@@ -48,6 +48,7 @@ app.use(session({
   cookie: {
     httpOnly: true,
     secure: false,
+    sameSite: 'lax', // 'lax' ist sicherer als 'strict' für Cross-Origin-Anfragen
     maxAge: 24 * 60 * 60 * 1000
   }
 }));
@@ -112,46 +113,49 @@ app.post('/api/register', async (req, res) => {
 
 // Handler furs Login
 app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
-  
-    console.log('>>> /api/login wurde aufgerufen!');
-    console.log('Request Body:', req.body);
-  
-    if (!email || !password) {
-      console.log('Fehler: E-Mail oder Passwort fehlt.');
-      return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich.' });
+  const { email, password } = req.body;
+
+  console.log('>>> /api/login wurde aufgerufen!');
+  console.log('Request Body:', req.body);
+
+  if (!email || !password) {
+    console.log('Fehler: E-Mail oder Passwort fehlt.');
+    return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich.' });
+  }
+
+  try {
+    console.log('Suche Benutzer in der Datenbank mit E-Mail:', email);
+    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = userResult.rows[0];
+
+    if (!user) {
+      console.log('Fehler: Benutzer nicht gefunden fur E-Mail:', email);
+      return res.status(401).json({ error: 'Ungultige Anmeldeinformationen.' });
     }
-  
-    try {
-      console.log('Suche Benutzer in der Datenbank mit E-Mail:', email);
-      const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-      const user = userResult.rows[0];
-  
-      if (!user) {
-        console.log('Fehler: Benutzer nicht gefunden fur E-Mail:', email);
-        return res.status(401).json({ error: 'Ungultige Anmeldeinformationen.' });
-      }
-  
-      console.log('Benutzer gefunden:', user);
-      console.log('Vergleiche Passwort mit Hash:', user.password_hash);
-      const passwordMatch = await bcrypt.compare(password, user.password_hash);
-      console.log('Passwort stimmt uberein:', passwordMatch);
-  
-      if (passwordMatch) {
-        req.session.userId = user.id;
-        req.session.userName = user.name;
-        console.log('Login erfolgreich. Session-ID gesetzt fur Benutzer-ID:', user.id);
-        console.log('Session-Inhalt nach Login:', req.session);
-        return res.status(200).json({ message: 'Login erfolgreich!', userId: user.id, email: user.email, role: user.role });
-      } else {
-        console.log('Fehler: Passwort stimmt nicht uberein fur Benutzer-ID:', user.id);
-        return res.status(401).json({ error: 'Ungultige Anmeldeinformationen.' });
-      }
-  
-    } catch (error) {
-      console.error('Fehler beim Login:', error);
-      return res.status(500).json({ error: 'Fehler beim Login.' });
+
+    console.log('Benutzer gefunden:', user);
+    console.log('Vergleiche Passwort mit Hash:', user.password_hash);
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    console.log('Passwort stimmt uberein:', passwordMatch);
+
+    if (passwordMatch) {
+      req.session.userId = user.id;
+      req.session.role = user.role; // <--- THIS IS THE CRUCIAL CORRECTION!
+      req.session.userName = user.first_name; // Optional: Store the user's first name if available and needed for display
+
+      console.log('Login erfolgreich. Session-ID gesetzt fur Benutzer-ID:', user.id);
+      console.log('Session-Inhalt nach Login (NACH KORREKTUR):', req.session); // VERIFY THIS LOG IN YOUR TERMINAL!
+
+      return res.status(200).json({ message: 'Login erfolgreich!', userId: user.id, email: user.email, role: user.role });
+    } else {
+      console.log('Fehler: Passwort stimmt nicht uberein fur Benutzer-ID:', user.id);
+      return res.status(401).json({ error: 'Ungultige Anmeldeinformationen.' });
     }
+
+  } catch (error) {
+    console.error('Fehler beim Login:', error);
+    return res.status(500).json({ error: 'Fehler beim Login.' });
+  }
 });
 
 // Handler fur Benutzer-Daten
@@ -614,51 +618,13 @@ app.get('/api/all-customers', async (req, res) => {
 
 // Middleware
 const isAdmin = (req, res, next) => {
-  if (req.session?.user?.role === 'admin') return next();
+  if (req.session && req.session.role === 'admin') { // Added req.session check
+    return next();
+  }
+  // Optional: Add a log here to see why it's failing
+  console.log('❌ Access denied: Admin role required. Current session:', req.session);
   return res.status(403).json({ error: 'Admin only' });
 };
-
-// GET /api/admin/users
-app.get('/api/admin/users', isAdmin, async (req, res) => {
-  const users = await db.all('SELECT id, name, email, role FROM users');
-  res.json(users);
-});
-
-// GET /api/admin/appointments
-app.get('/api/admin/appointments', isAdmin, async (req, res) => {
-  const appointments = await db.all(`
-    SELECT a.*, u.name AS customer_name, s.name AS staff_name
-    FROM appointments a
-    JOIN users u ON a.customer_id = u.id
-    JOIN users s ON a.staff_id = s.id
-    ORDER BY a.date DESC
-  `);
-  res.json(appointments);
-});
-
-// GET /api/admin/stats
-app.get('/api/admin/stats', isAdmin, async (req, res) => {
-  const [users, appointments, notes] = await Promise.all([
-    db.get('SELECT COUNT(*) as count FROM users'),
-    db.get('SELECT COUNT(*) as count FROM appointments'),
-    db.get('SELECT COUNT(*) as count FROM notes')
-  ]);
-  res.json({ users: users.count, appointments: appointments.count, notes: notes.count });
-});
-
-// GET /api/admin/notes
-app.get('/api/admin/notes', isAdmin, async (req, res) => {
-  const notes = await db.all(`
-    SELECT n.*, u.name AS customer_name, s.name AS staff_name
-    FROM notes n
-    JOIN users u ON n.customer_id = u.id
-    JOIN users s ON n.staff_id = s.id
-    ORDER BY n.created_at DESC
-  `);
-  res.json(notes);
-});
-
-
 
 // Fuge diesen Handler zu deinem Express-Server hinzu
 app.post('/api/logout', (req, res) => {
@@ -685,16 +651,8 @@ app.post('/api/log-unrecognized-role', async (req, res) => {
   res.status(200).json({ success: true });
 });
 
-
-
-// WICHTIGER FALLBACK-HANDLER FUR REACT ROUTER
-// Dieser Handler muss der ALLERLETZTE sein, NACH ALLEN API-Endpunkten!
-app.get(/^\/(?!api).*/, (req, res) => {
-  res.sendFile(path.join(buildPath, 'index.html'));
-});
-
 app.use((err, req, res, next) => {
-  console.error('Unerwarteter Fehler:', err);
+  console.error('Unerwarteter Fehler im Fehler-Handler:', err); // Angepasster Log
   res.status(500).json({ error: 'Interner Serverfehler' });
 });
 
@@ -702,6 +660,13 @@ app.use((err, req, res, next) => {
 // Starte den Server nur einmal am Ende der Datei
 app.listen(port, () => {
   console.log(`Server lauft auf http://localhost:${port}`);
+});
+
+// WICHTIGER FALLBACK-HANDLER FUR REACT ROUTER
+// Dieser Handler muss der ALLERLETZTE sein, NACH ALLEN API-Endpunkten!
+app.get(/^\/(?!api).*/, (req, res) => {
+  console.log('*** Fallback-Route ausgelost fuer:', req.url, '***'); // NEUER LOG
+  res.sendFile(path.join(buildPath, 'index.html'));
 });
 
 // Optional: Fehlerbehandlung fur Datenbankverbindung beim Start

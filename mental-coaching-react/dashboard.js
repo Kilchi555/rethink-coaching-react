@@ -14,25 +14,25 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log(`Willkommen auf dem Dashboard, Rolle: ${userRole}, E-Mail: ${userEmail}`);
 
     // UI-Elemente
-    const customerDashboard = document.getElementById('customer-dashboard');
-    const employeeDashboard = document.getElementById('employee-dashboard');
+    const clientDashboard = document.getElementById('client-dashboard');
+    const staffDashboard = document.getElementById('staff-dashboard');
     const adminDashboard = document.getElementById('admin-dashboard');
     const logoutButton = document.getElementById('logout-button'); // Füge einen Logout-Button hinzu!
 
     // Alle Dashboards erstmal ausblenden
-    if (customerDashboard) customerDashboard.style.display = 'none';
-    if (employeeDashboard) employeeDashboard.style.display = 'none';
+    if (clientDashboard) clientDashboard.style.display = 'none';
+    if (staffDashboard) staffDashboard.style.display = 'none';
     if (adminDashboard) adminDashboard.style.display = 'none';
 
     // Richtiges Dashboard anzeigen
     switch (userRole) {
-        case 'customer':
-            if (customerDashboard) customerDashboard.style.display = 'block';
+        case 'client':
+            if (clientDashboard) clientDashboard.style.display = 'block';
             await fetchAndDisplayPastAppointments(); // Lade Termine für Kunden
             await fetchAndDisplayFutureAppointments();
             break;
-        case 'staff': // Oder 'employee'
-            if (employeeDashboard) employeeDashboard.style.display = 'block';
+        case 'staff': // Oder 'staff'
+            if (staffDashboard) staffDashboard.style.display = 'block';
             await fetchAndDisplayPastAppointments(); // Lade Termine für Mitarbeiter (ggf. andere Ansicht/Daten)
             await fetchAndDisplayFutureAppointments();
             break;

@@ -1,14 +1,9 @@
-// src/components/Dashboard.jsx
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-// Importiere den useAppointments Hook, falls er weiterhin direkt verwendet wird
-// Oder entferne ihn, wenn die Termine vollständig aus dem AuthContext bezogen werden.
-// Basierend auf Ihrer Anforderung im StaffDashboard, belassen wir ihn hier.
-import { useAppointments } from '../hooks/useAppointments'; 
-
-import './Dashboard.css'; 
-import CalendarComponent from './CalendarComponent'; // Stellen Sie sicher, dass dies existiert und korrekt ist.
+import './Dashboard.css';
+import CalendarComponent from './CalendarComponent';
+import AppointmentModal from './AppointmentModal'; // <<-- NEU: Dein umbenanntes Modal
 
 // --- Hilfskomponenten ---
 const LoadingSpinner = ({ message }) => (
@@ -18,178 +13,516 @@ const LoadingSpinner = ({ message }) => (
   </div>
 );
 
-const NoteFormattingButtons = ({ editorId }) => {
-  const formatText = (command, value = null) => {
-    const editor = document.getElementById(editorId);
-    if (editor) {
-      editor.focus();
-      document.execCommand(command, false, value);
-    }
-  };
-
-  return (
-    <div className="note-formatting-buttons">
-      <button onClick={() => formatText('bold')}>B</button>
-      <button onClick={() => formatText('italic')}>I</button>
-      <button onClick={() => formatText('underline')}>U</button>
-      <button onClick={() => formatText('fontSize', '1')}>XS</button>
-      <button onClick={() => formatText('fontSize', '3')}>M</button>
-      <button onClick={() => formatText('fontSize', '5')}>XL</button>
-    </div>
-  );
-};
-
 // --- Hauptkomponente: Dashboard ---
 const Dashboard = () => {
-  // Destrukturieren aus AuthContext: 'loading' wird in 'authLoading' umbenannt.
-  const { user, loading: authLoading, logout, isLoggedIn, futureAppointments, pastAppointments, fetchAppointments } = useAuth();
+  const { user, isLoggedIn, loading: authLoading, logout, futureAppointments, pastAppointments, fetchAppointments } = useAuth();
   const navigate = useNavigate();
 
-  // Lokale Zustände für spezifische Dashboard-Ansichten/Funktionen
   const [dashboardError, setDashboardError] = useState(null);
   const [adminStats, setAdminStats] = useState(null);
-  const [employeeStats, setEmployeeStats] = useState(null);
+  const [staffStats, setstaffStats] = useState(null);
   const [isAdminLoading, setIsAdminLoading] = useState(false);
-  const [isEmployeeLoading, setIsEmployeeLoading] = useState(false);
-  // isCustomerLoading wird nicht mehr direkt in Dashboard verwendet, da Termine aus AuthContext kommen.
-  // const [isCustomerLoading, setIsCustomerLoading] = useState(false); 
-  const [allCustomers, setAllCustomers] = useState([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [isstaffLoading, setIsstaffLoading] = useState(false);
+  const [allclients, setAllclients] = useState([]);
+  const [myStaffclients, setMyStaffclients] = useState([]);
+  const [showClientDetailsModal, setShowClientDetailsModal] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null); 
 
-  // States für Modale
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [isAppointmentDetailsModalOpen, setIsAppointmentDetailsModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState(null); // Für Details-Modal
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
 
-  // State und Ref für Notizbearbeitung
   const [editingNoteIds, setEditingNoteIds] = useState({});
   const [expandedAppointmentIds, setExpandedAppointmentIds] = useState({});
-  const clientNoteEditorRef = useRef({}); // Verwende ein Objekt, um Refs für mehrere Editoren zu speichern
+  const clientNoteEditorRef = useRef({});
+  const staffNoteEditorRef = useRef({}); 
 
-  // State für "Notiz gespeichert" Meldung
   const [showNoteSavedMessage, setShowNoteSavedMessage] = useState(false);
-  const noteSavedTimeoutRef = useRef(null); // Für den Timeout-Handler
+  const noteSavedTimeoutRef = useRef(null);
 
-  // FullCalendar Ref
   const calendarRef = useRef(null);
-  const calendarTitleRef = useRef(null); // Für den Kalendertitel im Modal
+  const calendarTitleRef = useRef(null);
 
-  // States für Event-Erstellung/Bearbeitung im Kalender (wenn Staff/Admin)
-  const [newEventModalOpen, setNewEventModalOpen] = useState(false);
-  const [isEditingExistingEvent, setIsEditingExistingEvent] = useState(false); 
-  const [newEventTitle, setNewEventTitle] = useState('');
-  const [newEventLocation, setNewEventLocation] = useState('');
-  const [newEventStart, setNewEventStart] = useState('');
-  const [newEventEnd, setNewEventEnd] = useState('');
+  const [showAllMonthsModal, setShowAllMonthsModal] = useState(false);
+  const monthNames = [
+    "Januar", "Februar", "März", "April", "Mai", "Juni",
+    "Juli", "August", "September", "Oktober", "November", "Dezember"
+  ];
 
-  // Kalender-spezifische Zustände: 'appointments' hier ist für den Kalender-Drag-and-Drop
-  // und sollte von den 'futureAppointments' aus dem AuthContext initialisiert werden.
-  // Der Name 'calendarAppointments' wird verwendet, um Kollisionen zu vermeiden.
+  // === STATES FÜR DAS NEUE APPOINTMENT MODAL ===
+  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false); // <-- Geändert von isAppointmentFormModalOpen
+  const [initialEventDataForModal, setInitialEventDataForModal] = useState(null); // <-- Geändert von initialEventData
+  const [selectedDateAndTimeForModal, setSelectedDateAndTimeForModal] = useState(null); // <-- Geändert von selectedDateAndTimeForNewEvent
+
+  // === STATES FÜR "Zuletzt verwendet" ===
+  const [lastUsedTitle, setLastUsedTitle] = useState('');
+  const [lastUsedLocation, setLastUsedLocation] = useState('');
+  const [lastUsedDuration, setLastUsedDuration] = useState(60);
+
   const [calendarAppointments, setCalendarAppointments] = useState([]);
   const [copiedAppointment, setCopiedAppointment] = useState(null);
   const [originalCalendarAppointments, setOriginalCalendarAppointments] = useState([]);
   const [hasChanges, setHasChanges] = useState(false);
+  const [isclientsLoading, setIsclientsLoading] = useState(false);
+  const hasFetchedclients = useRef(false);
+
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [pendingEventDrop, setPendingEventDrop] = useState(null);
+  const [sendSmsNotification, setSendSmsNotification] = useState(true);
+  const [originalDroppedEvent, setOriginalDroppedEvent] = useState(null);
+
+  const handleLogout = useCallback(async () => {
+    console.log('User initiated logout.');
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error during logout:', error);
+    }
+  }, [logout, navigate]);
+
+  const fetchAdminStatistics = useCallback(async () => {
+    console.log('--- fetchAdminStatistics gestartet ---');
+    if (isAdminLoading) {
+      console.log('Admin statistics already loading, skipping fetch.');
+      return;
+    }
+    setIsAdminLoading(true);
+    console.log('isAdminLoading auf true gesetzt.');
+    try {
+      const response = await fetch('http://localhost:3000/api/admin/statistics', { credentials: 'include' });
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('Admin stats: 401 Unauthorized, logging out.');
+          logout();
+          return;
+        }
+        throw new Error(`Fehler beim Abrufen der Admin-Daten: ${response.statusText}`);
+      }
+      const data = await response.json();
+      setAdminStats(data);
+      console.log('API-Antwort für Admin-Statistiken erhalten und setAdminStats gesetzt:', data);
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Admin-Daten:', error);
+      setDashboardError('Fehler beim Laden der Admin-Daten.');
+    } finally {
+      setIsAdminLoading(false);
+      console.log('isAdminLoading auf false gesetzt.');
+      console.log('--- fetchAdminStatistics beendet ---');
+    }
+  }, [logout, setAdminStats, setDashboardError]); // is AdminLoading HIER ENTFERNT!
+
+  const fetchstaffStatistics = useCallback(async () => {
+    console.log('--- fetchstaffStatistics gestartet ---');
+    if (isstaffLoading) {
+      console.log('staff statistics already loading, skipping fetch.');
+      return;
+    }
+    setIsstaffLoading(true);
+    setDashboardError(null);
+    console.log('isstaffLoading auf true gesetzt.');
+
+    try {
+      const response = await fetch('http://localhost:3000/api/staff/statistics', { credentials: 'include' });
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.warn('staff stats: 401 Unauthorized, logging out.');
+          logout();
+          return;
+        }
+        throw new Error(`Fehler beim Abrufen der Mitarbeiter-Daten: ${response.statusText}`);
+      }
+      const data = await response.json();
+      setstaffStats(data);
+      console.log('API-Antwort für Mitarbeiter-Statistiken erhalten und setstaffStats gesetzt:', data);
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Mitarbeiter-Daten:', error);
+      setDashboardError('Fehler beim Laden der Mitarbeiter-Daten.');
+    } finally {
+      setIsstaffLoading(false);
+      console.log('isstaffLoading auf false gesetzt.');
+      console.log('--- fetchstaffStatistics beendet ---');
+    }
+  }, [logout, setstaffStats, setDashboardError]); // isstaffLoading HIER ENTFERNT!
+
+  const fetchclients = useCallback(async () => {
+    console.log('Innerhalb von fetchclients-Funktion gestartet.');
+    // Der if(isclientsLoading)-Check bleibt hier, da er eine schnelle Ausstiegsbedingung ist
+    if (isclientsLoading) {
+      console.log('Kunden-Daten werden bereits geladen, überspringe Fetch.');
+      return;
+    }
+    setIsclientsLoading(true);
+    setDashboardError(null);
+    console.log('isclientsLoading auf true gesetzt.');
+
+    try {
+      console.log('Versuche /api/all-clients zu laden...');
+      const allclientsRes = await fetch('/api/all-clients', { credentials: 'include' });
+      if (!allclientsRes.ok) {
+        if (allclientsRes.status === 401) {
+          console.warn('All clients fetch: 401 Unauthorized, logging out.');
+          logout();
+          return;
+        }
+        throw new Error('Fehler beim Laden aller Kunden');
+      }
+      const allclientsData = await allclientsRes.json();
+      setAllclients(allclientsData);
+      console.log('setAllclients gesetzt. Anzahl aller Kunden:', allclientsData.length);
+
+      // myStaffclients.length wird hier gelesen, also muss es in den Abhängigkeiten sein ODER
+      // wir nutzen einen Callback-Formular für setMyStaffclients, um alte Werte zu nutzen,
+      // und myStaffclients.length kann aus useCallback entfernt werden.
+      // Für diesen Fall ist es am einfachsten, den Wert weiterhin als Abhängigkeit zu behandeln,
+      // oder alternativ den if-Check so zu gestalten, dass er nicht zur Schleife führt.
+      // Da der Hauptfehler die Statistik-Schleife war, lassen wir dies vorerst so.
+      if (user?.role === 'staff' && myStaffclients.length === 0) {
+        console.log('User ist staff. Versuche /api/staff/my-clients zu laden...');
+        const myclientsRes = await fetch('/api/staff/my-clients', { credentials: 'include' });
+        if (!myclientsRes.ok) {
+          if (myclientsRes.status === 401) {
+            console.warn('My staff clients fetch: 401 Unauthorized, logging out.');
+            logout();
+            return;
+          }
+          throw new Error('Fehler beim Laden der Mitarbeiter-Kundenliste');
+        }
+        const myclientsData = await myclientsRes.json();
+        setMyStaffclients(myclientsData);
+        console.log('setMyStaffclients gesetzt. Anzahl Mitarbeiter-Kunden:', myclientsData.length);
+      } else if (user?.role === 'staff') {
+        console.log('User ist staff, aber myStaffclients ist bereits geladen. Überspringe fetch.');
+      }
+
+      hasFetchedclients.current = true;
+
+    } catch (err) {
+      console.error('Fehler beim Laden der Dashboard-Kundenlisten:', err);
+      setDashboardError(err.message);
+    } finally {
+      setIsclientsLoading(false);
+      console.log('isclientsLoading auf false gesetzt.');
+      console.log('fetchclients-Funktion beendet.');
+    }
+  }, [
+    logout,
+    user,
+    setAllclients,
+    setMyStaffclients,
+    setDashboardError,
+    // isclientsLoading, // HIER KÖNNTE ES AUCH ZU EINER SCHLEIFE FÜHREN, ABER NICHT IMMER. SICHERHEITSHALBER ENTFERNEN.
+    myStaffclients.length // BLEIBT, WEIL ES IN DER LOGIK GELESEN WIRD UND SO DIE FUNKTION BEI ÄNDERUNG NEU ERZEUGT WIRD.
+                          // Alternative: myStaffclients über functional update in setMyStaffclients nutzen, dann ist dies nicht nötig.
+                          // Für jetzt fokussieren wir uns auf den Statistik-Loop.
+  ]);
+
+  // useEffect zum Laden der Admin-Statistiken
+  useEffect(() => {
+    // Nur laden, wenn der Benutzer eingeloggt ist und die Rolle 'admin' hat
+    if (isLoggedIn && user?.role === 'admin') {
+      console.log('useEffect: Lade Admin-Statistiken...');
+      fetchAdminStatistics();
+    }
+  }, [isLoggedIn, user?.role, fetchAdminStatistics]); // Abhängigkeiten
   
-  // Der useAppointments Hook für Staff/Admin Dashboards.
-  // Wichtig: Hier wird der 'appointments' Name des Hooks verwendet, aber da wir oben
-  // 'calendarAppointments' haben, ist das in Ordnung.
-  // Die loading/error Zustände werden hier abgegriffen.
-  const { appointments: staffDashboardAppointments, loading: appointmentsLoading, error: appointmentsError } = useAppointments(user?.role || 'staff', true); 
-  //                                                              ^^^^^^^^^^^^        ^^^^^^^^^^^^^
-
-  // useEffect zur Initialisierung der Kalender-Termine aus dem AuthContext
+  // useEffect zum Laden der Mitarbeiter-Statistiken
   useEffect(() => {
-    // Stellen Sie sicher, dass futureAppointments aus dem AuthContext geladen sind und nicht leer sind,
-    // bevor Sie sie in calendarAppointments kopieren.
-    if (!authLoading && futureAppointments.length > 0 && JSON.stringify(futureAppointments) !== JSON.stringify(originalCalendarAppointments)) {
-      setCalendarAppointments(futureAppointments);
-      setOriginalCalendarAppointments(futureAppointments); // Original für Reset/Vergleich setzen
+    // Nur laden, wenn der Benutzer eingeloggt ist und die Rolle 'staff' oder 'admin' hat
+    if (isLoggedIn && (user?.role === 'staff' || user?.role === 'admin')) {
+      console.log('useEffect: Lade Mitarbeiter-Statistiken...');
+      fetchstaffStatistics();
     }
-    // Wenn es sich um einen Staff-Benutzer handelt und der useAppointments-Hook Daten geliefert hat,
-    // können diese als Quelle für den Kalender verwendet werden, falls die AuthContext-Termine
-    // nicht spezifisch genug sind (z.B. wenn useAppointments Filter anwendet).
-    // Ansonsten reicht es, sich auf die futureAppointments aus dem AuthContext zu verlassen.
-    // Für StaffDashboard belassen wir den Hook.
-    if (user?.role === 'staff' && !appointmentsLoading && staffDashboardAppointments.length > 0 && JSON.stringify(staffDashboardAppointments) !== JSON.stringify(originalCalendarAppointments)) {
-       setCalendarAppointments(staffDashboardAppointments);
-       setOriginalCalendarAppointments(staffDashboardAppointments);
-    }
-
-  }, [authLoading, futureAppointments, staffDashboardAppointments, appointmentsLoading, user?.role, originalCalendarAppointments]);
-
-
-  // --- useEffect für Authentifizierung und Datenabruf (Rollen-spezifisch) ---
+  }, [isLoggedIn, user?.role, fetchstaffStatistics]); // Abhängigkeiten
+  
+  // Ihr Haupt-useEffect (Kunden/Kalender) - BEHALTEN SIE NUR EINEN DIESER BLÖCKE
   useEffect(() => {
-    if (authLoading) return; // Warten, bis AuthContext geladen ist
+    console.log('--- Haupt-useEffect (Kunden/Kalender) wird ausgeführt ---');
+    console.log('Abhängigkeiten Haupt-useEffect:', {
+      authLoading,
+      isLoggedIn,
+      user: user ? user.role : 'kein User',
+      isclientsLoading,
+      hasFetchedclients: hasFetchedclients.current,
+      // futureAppointments ist hier das, was wir im AuthContext bekommen
+      futureAppointmentsLength: futureAppointments ? futureAppointments.length : 0,
+      originalCalendarAppointmentsLength: originalCalendarAppointments ? originalCalendarAppointments.length : 0,
+    });
 
+    if (authLoading) {
+      console.log('Haupt-useEffect übersprungen: authLoading ist true.');
+      return;
+    }
     if (!isLoggedIn) {
-      console.log('Dashboard: Benutzer nicht angemeldet. Leite zum Login weiter.');
+      console.log('Haupt-useEffect übersprungen: isLoggedIn ist false. Navigiere zu /login.');
       navigate('/login');
       return;
     }
 
-    const fetchDataForRole = async () => {
-      setDashboardError(null);
-      try {
-        if (user?.role === 'staff') {
-          await fetchEmployeeStatistics();
-          // Zusätzliche Kundenliste für Staff
-          const customersRes = await fetch('/api/all-customers', { credentials: 'include' });
-          if (!customersRes.ok) throw new Error('Fehler beim Laden der Kunden');
-          const customersData = await customersRes.json();
-          setAllCustomers(customersData);
-        } else if (user?.role === 'admin') {
-          await fetchAdminStatistics();
-        }
-        // fetchCustomerAppointments wird jetzt durch fetchAppointments im AuthContext abgedeckt
-        // und die Daten werden direkt von dort bezogen (futureAppointments, pastAppointments).
-      } catch (err) {
-        console.error('Fehler beim Laden der Dashboard-spezifischen Daten:', err);
-        setDashboardError(err.message);
-      }
-    };
-
-    if (user && isLoggedIn) {
-      fetchDataForRole();
+    // --- LOGIK ZUM SETZEN DER KALENDERTERMINE FÜR ALLE ROLLEN ---
+    // Dies muss für JEDE Rolle passieren, da jeder seine Termine im Kalender sehen soll.
+    console.log('futureAppointments Länge (aus useAuth):', futureAppointments.length);
+    if (futureAppointments.length > 0 && JSON.stringify(futureAppointments) !== JSON.stringify(originalCalendarAppointments)) {
+      console.log('futureAppointments hat sich geändert oder ist neu. Setze Kalender-Termine und Original.');
+      setCalendarAppointments(futureAppointments);
+      setOriginalCalendarAppointments(futureAppointments);
+    } else if (futureAppointments.length === 0 && originalCalendarAppointments.length > 0) {
+      console.log('futureAppointments ist leer, aber Original hat Daten. Setze Kalender-Termine und Original auf leer.');
+      setCalendarAppointments([]);
+      setOriginalCalendarAppointments([]);
+    } else {
+      console.log('Kalender-Termine: Keine Änderungen an futureAppointments.');
     }
 
-  }, [authLoading, isLoggedIn, user, logout, navigate]); // Abhängigkeiten optimiert
+    // --- ROLLEMBASIERTE LOGIK FÜR KUNDEN-DATENABRUF (nur Staff/Admin) ---
+    // fetchclients() enthält Logik für allclients und myStaffclients,
+    // was nur für Staff/Admin relevant ist (z.B. für Dropdowns im AppointmentModal).
+    if (user && (user?.role === 'staff' || user?.role === 'admin')) {
+      if (!hasFetchedclients.current && !isclientsLoading) {
+        console.log('Starte fetchclients, da noch nicht geladen und nicht in Ladezustand.');
+        fetchclients();
+      } else {
+        console.log('Kunden-Fetches übersprungen: bereits geladen oder in Ladezustand.');
+      }
+    } else {
+      console.log('Kunden-Fetches übersprungen, da User-Rolle nicht Staff/Admin ist.');
+    }
 
+  }, [
+    authLoading,
+    isLoggedIn,
+    user, // user ist eine Abhängigkeit, da die Rolle die Logik beeinflusst
+    navigate,
+    fetchclients,
+    isclientsLoading, // isclientsLoading muss hier bleiben, da es im if-Statement gelesen wird
+    futureAppointments, // Wichtig: futureAppointments muss hier als Abhängigkeit stehen!
+    originalCalendarAppointments,
+    setCalendarAppointments,
+    setOriginalCalendarAppointments
+  ]);
 
-  // --- Logout Funktion ---
-  const handleLogout = async () => {
-    await logout(); // Nutzt die logout-Funktion aus dem AuthContext
-    localStorage.clear();
-    navigate('/login');
-  };
+  // NEU: Funktion zum Duplizieren nach dem Drag & Drop
+  const duplicateEventDrop = useCallback(async () => {
+    if (!pendingEventDrop) return;
 
-  // --- Kalender Funktionen ---
-  const handleEventDrop = (info) => {
-    const id = parseInt(info.event.id);
+    // Erstelle ein "kopiertes" Event-Objekt aus dem Pending-Event
+    const duplicatedData = {
+      thema: pendingEventDrop.extendedProps.thema || pendingEventDrop.title,
+      location: pendingEventDrop.extendedProps.location,
+      start_time: pendingEventDrop.start.toISOString(), // Verwende die NEUE Position vom Drag & Drop
+      end_time: pendingEventDrop.end.toISOString(),     // Verwende die NEUE Position vom Drag & Drop
+      user_id: pendingEventDrop.extendedProps.user_id, // Übernimm den Kunden des verschobenen Termins
+    };
+
+    try {
+      // API-Aufruf zum Erstellen eines NEUEN Termins
+      const response = await fetch('/api/book-appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(duplicatedData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Fehler beim Duplizieren des Termins.`);
+      }
+
+      alert('✅ Termin erfolgreich dupliziert!');
+
+      // Setze den Kalenderzustand auf den ursprünglichen Zustand zurück (Termin nicht verschieben)
+      setCalendarAppointments(originalCalendarAppointments); // WICHTIG: Originalzustand wiederherstellen
+      setHasChanges(false);
+
+      setShowConfirmationModal(false); // Modal schliessen
+      setPendingEventDrop(null);
+      setOriginalDroppedEvent(null);
+      await fetchAppointments(); // Termine im AuthContext neu laden
+    } catch (err) {
+      console.error('❌ Fehler beim Duplizieren des Termins:', err);
+      alert('Fehler beim Duplizieren des Termins: ' + err.message);
+    }
+  }, [pendingEventDrop, originalCalendarAppointments, setCalendarAppointments, setHasChanges, fetchAppointments]);
+
+  const handleEventDrop = useCallback(({ event, oldEvent }) => {
+    console.log('🟢 handleEventDrop ausgelöst');
+    console.log('Neuer Event:', event);
+    console.log('Alter Event:', oldEvent);
+
+    const id = parseInt(event.id);
     const updated = calendarAppointments.map(app =>
       app.id === id
         ? {
             ...app,
-            start_time: info.event.start.toISOString(),
-            end_time: info.event.end.toISOString(),
+            start_time: event.start.toISOString(),
+            end_time: event.end.toISOString(),
           }
         : app
     );
+
     setCalendarAppointments(updated);
     setHasChanges(true);
-  };
-  
-  const handleSaveChanges = async () => {
+
+    setPendingEventDrop(event);
+    setOriginalDroppedEvent(oldEvent);
+    setShowConfirmationModal(true);
+  }, [calendarAppointments, setCalendarAppointments, setHasChanges]);
+
+  const confirmEventDrop = useCallback(async () => {
+    if (!pendingEventDrop) return;
+
+    const id = parseInt(pendingEventDrop.id);
+    const updatedAppointment = calendarAppointments.find(app => app.id === id);
+
+    if (!updatedAppointment) {
+      console.error('Bestätigung fehlgeschlagen: Aktualisierter Termin nicht gefunden.');
+      setShowConfirmationModal(false);
+      setPendingEventDrop(null);
+      setOriginalDroppedEvent(null);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          start_time: updatedAppointment.start_time,
+          end_time: updatedAppointment.end_time,
+          sendSms: sendSmsNotification,
+          old_start_time: originalDroppedEvent.start.toISOString(),
+          old_end_time: originalDroppedEvent.end.toISOString(),
+          client_first_name: updatedAppointment.client_first_name,
+          client_last_name: updatedAppointment.client_last_name,
+          client_phone_number: updatedAppointment.client_phone_number
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Fehler beim Speichern der Terminänderung für ID ${id}: ${response.status} ${errorText}`);
+      }
+
+      alert('Termin erfolgreich verschoben!');
+      setOriginalCalendarAppointments(prev => prev.map(app => app.id === id ? updatedAppointment : app));
+      setHasChanges(false);
+      await fetchAppointments();
+
+      if (sendSmsNotification) {
+        console.log('SMS-Benachrichtigung wird gesendet (falls im Backend implementiert).');
+      }
+
+    } catch (err) {
+      console.error('Fehler beim Bestätigen der Terminverschiebung:', err);
+      alert('Fehler beim Speichern der Verschiebung: ' + err.message);
+      setCalendarAppointments(originalCalendarAppointments);
+      setHasChanges(false);
+    } finally {
+      setShowConfirmationModal(false);
+      setPendingEventDrop(null);
+      setOriginalDroppedEvent(null);
+    }
+  }, [
+    pendingEventDrop,
+    calendarAppointments,
+    sendSmsNotification,
+    originalDroppedEvent,
+    setOriginalCalendarAppointments,
+    setHasChanges,
+    fetchAppointments,
+    originalCalendarAppointments
+  ]);
+
+
+  const triggerCopyAppointment = useCallback((appointmentToCopy) => { // <-- HIER FEHLT DER ANFANG!
+    // Überprüfe, ob appointmentToCopy gültige Daten enthält
+    if (!appointmentToCopy || !appointmentToCopy.start_time || !appointmentToCopy.end_time) {
+      console.error("Ungültige Termindaten zum Kopieren:", appointmentToCopy);
+      alert("Fehler: Termin konnte nicht kopiert werden. Ungültige Daten.");
+      return;
+    }
+
+  const durationMinutes = Math.floor((new Date(appointmentToCopy.end_time).getTime() - new Date(appointmentToCopy.start_time).getTime()) / 60000);
+
+  setCopiedAppointment({
+    // WICHTIG: Hier die Daten aufbereiten, die später im AppointmentModal vorbesetzt werden sollen.
+    // initialEventData wird dies nutzen.
+    thema: appointmentToCopy.thema || appointmentToCopy.title,
+    location: appointmentToCopy.location,
+    durationMinutes: durationMinutes, // Die Dauer muss hier übergeben werden
+    user_id: appointmentToCopy.user_id, // Die Kunden-ID des Originaltermins
+    // start_time und end_time werden NICHT kopiert, da der neue Termin eine neue Zeit bekommt
+    // id wird auch nicht kopiert, da es ein neuer Termin ist
+  });
+  alert('Termin kopiert! Klicke nun im Kalender auf einen freien Slot, um ihn einzufügen.');
+  // Nach dem Kopieren: Das aktuelle Modal schliessen und den Kalender öffnen,
+  // damit der Nutzer einfuegen kann.
+  setIsAppointmentDetailsModalOpen(false); // Falls das Details-Modal offen war
+  setIsAppointmentModalOpen(false); // Falls das Bearbeitungs-Modal offen war
+  setIsCalendarModalOpen(true); // Öffnet den Kalender
+}, [setCopiedAppointment, setIsAppointmentDetailsModalOpen, setIsAppointmentModalOpen, setIsCalendarModalOpen]);
+
+
+  // onEventClick (für Kalender-Klick) - Dies wird sich nicht ändern, da es die Daten vorbereitet
+  const onEventClick = useCallback((info) => {
+    if (user?.role === 'staff' || user?.role === 'admin') {
+      // ... (bestehende Logik für Staff/Admin)
+      const eventToEdit = calendarAppointments.find(app => app.id === parseInt(info.event.id));
+      if (eventToEdit) {
+        setInitialEventDataForModal({
+          id: eventToEdit.id,
+          thema: eventToEdit.thema || eventToEdit.title,
+          location: eventToEdit.location,
+          start_time: new Date(eventToEdit.start_time),
+          end_time: new Date(eventToEdit.end_time),
+          user_id: eventToEdit.user_id,
+        });
+        setIsAppointmentModalOpen(true); // Öffnet das Bearbeitungsmodal für Staff/Admin
+      }
+    } else {
+      // Für Kunden nur das Details-Modal anzeigen
+      const event = info.event;
+      const { title, start, end, extendedProps } = event;
+
+      const fullAppointmentData = { // Sammle alle relevanten Daten für die Kopierfunktion
+        id: parseInt(event.id), // Original ID, falls man sie später braucht (wird von triggerCopyAppointment entfernt)
+        thema: extendedProps.thema || title,
+        location: extendedProps.location,
+        start_time: start, // Originale Startzeit (wird in triggerCopyAppointment entfernt)
+        end_time: end,     // Originale Endzeit (wird in triggerCopyAppointment entfernt)
+        client_first_name: extendedProps.first_name,
+        client_last_name: extendedProps.last_name,
+        // Optional: Weitere Daten, die du kopieren möchtest (z.B. user_id des Kunden)
+        user_id: extendedProps.user_id, // Wichtig: Kunden-ID des Termins
+        durationMinutes: Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 60000)
+      };
+
+      setSelectedAppointment(fullAppointmentData); // Übergabe der vollen Daten
+      setIsAppointmentDetailsModalOpen(true);
+    }
+  }, [user, calendarAppointments, setSelectedAppointment, setIsAppointmentDetailsModalOpen, setIsAppointmentModalOpen, setInitialEventDataForModal]);
+
+  const cancelEventDrop = useCallback(() => {
+    console.log('Abbrechen der Terminverschiebung.');
+    setCalendarAppointments(originalCalendarAppointments);
+    setHasChanges(false);
+    setShowConfirmationModal(false);
+    setPendingEventDrop(null);
+    setOriginalDroppedEvent(null);
+  }, [setCalendarAppointments, originalCalendarAppointments, setHasChanges]);
+
+  const handleSaveChanges = useCallback(async () => {
     try {
       for (const app of calendarAppointments) {
         const original = originalCalendarAppointments.find(a => a.id === app.id);
-        // Prüfen, ob sich Start- oder Endzeit geändert hat
         if (
           !original ||
           original.start_time !== app.start_time ||
           original.end_time !== app.end_time
         ) {
-          const response = await fetch(`/api/appointments/${app.id}`, {
+          console.log(`Änderung für Termin ID ${app.id} erkannt. Original: ${original?.start_time}, ${original?.end_time} | Neu: ${app.start_time}, ${app.end_time}`);
+          const response = await fetch(`/api/book-appointments/${app.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -205,130 +538,353 @@ const Dashboard = () => {
         }
       }
       alert('Änderungen gespeichert!');
-      setOriginalCalendarAppointments(calendarAppointments); // Original aktualisieren
+      setOriginalCalendarAppointments(calendarAppointments);
       setHasChanges(false);
-      await fetchAppointments(); // Termine im AuthContext aktualisieren
+      await fetchAppointments();
     } catch (err) {
       console.error('Fehler beim Speichern der Kalenderänderungen:', err);
       alert('Fehler beim Speichern: ' + err.message);
     }
-  };
-  
-  const handleReset = () => {
+  }, [
+    calendarAppointments,
+    originalCalendarAppointments,
+    setOriginalCalendarAppointments,
+    setHasChanges,
+    fetchAppointments
+  ]);
+
+  const handleReset = useCallback(() => {
     setCalendarAppointments(originalCalendarAppointments);
     setHasChanges(false);
-  };
-  
-  const handleCopy = (eventId) => {
+  }, [setCalendarAppointments, originalCalendarAppointments, setHasChanges]);
+
+  const handleCopy = useCallback((eventId) => {
     const found = calendarAppointments.find(a => a.id === eventId);
     if (found) {
       setCopiedAppointment({
         ...found,
-        id: null, // ID muss für neue Termine null sein
-        start_time: '', // Muss neu gesetzt werden
-        end_time: '', // Muss neu gesetzt werden
+        id: null,
+        start_time: '',
+        end_time: '',
       });
       alert('Termin kopiert! Du kannst ihn nun im Kalender einfügen.');
     }
-  };
-  
-  const handleDateClick = (info) => {
-    if (!copiedAppointment) {
-      // Wenn kein Termin kopiert ist, öffne das Modal für neue Termine
-      setNewEventStart(info.date.toISOString().slice(0, 16)); // Voreinstellung für Startzeit
-      setNewEventEnd(new Date(info.date.getTime() + 60 * 60 * 1000).toISOString().slice(0, 16)); // Standard 1 Stunde später
-      setIsEditingExistingEvent(false); // NEU
-      setNewEventModalOpen(true);
-      return;
+  }, [calendarAppointments, setCopiedAppointment]);
+
+  const handleSelectFromCalendar = useCallback((info) => {
+    info.jsEvent.preventDefault();
+    info.view.calendar.unselect();
+
+    console.log('🟢 handleSelectFromCalendar ausgeführt:', info);
+
+    setSelectedDateAndTimeForModal(new Date(info.startStr)); // Setze die Startzeit für den NEUEN Termin
+
+    if (copiedAppointment) {
+      console.log('Kopierter Termin gefunden, setze Initialdaten für Modal:', copiedAppointment);
+      // setInitialEventDataForModal wird jetzt die kopierten Daten + neue Zeit erhalten
+      setInitialEventDataForModal({
+        ...copiedAppointment, // Kopierte thema, location, durationMinutes, user_id
+        start_time: new Date(info.startStr), // Neue Startzeit vom Klick
+        // end_time wird im AppointmentModal aus start_time + durationMinutes berechnet
+      });
+      setCopiedAppointment(null); // Den kopierten Termin zurücksetzen, sobald er genutzt wurde
+    } else {
+      setInitialEventDataForModal(null); // Sicherstellen, dass kein Bearbeitungsmodus aktiv ist
+      console.log('Kein kopierter Termin gefunden, Modal wird mit "Zuletzt verwendet" initialisiert.');
     }
 
-    // Logik zum Einfügen eines kopierten Termins
-    const duration = new Date(copiedAppointment.end_time) - new Date(copiedAppointment.start_time);
-    const start = new Date(info.date);
-    const end = new Date(start.getTime() + duration);
+    setIsAppointmentModalOpen(true); // Öffne das neue Termin-Formular-Modal
+  }, [copiedAppointment, setCopiedAppointment, setInitialEventDataForModal, setSelectedDateAndTimeForModal, setIsAppointmentModalOpen]);
 
-    const newApp = {
-      ...copiedAppointment,
-      start_time: start.toISOString(),
-      end_time: end.toISOString(),
-      id: Math.random().toString(36).substr(2, 9) // Temporäre ID für Frontend
-    };
+  const handleDateClick = useCallback((info) => {
+    // Diese Funktion wird nicht mehr primär für das Erstellen von Terminen verwendet,
+    // da `handleSelectFromCalendar` (vom `select`-Prop des FullCalendar) die Aufgabe übernimmt.
+    // Sie könnte für spezielle Kopiervorgänge oder andere Logik genutzt werden.
+    console.log("Date Clicked (This might be redundant if 'select' handles creation):", info);
+    if (copiedAppointment) {
+      // Logik zum Einfügen eines kopierten Termins.
+      // Normalerweise würde hier ein API-Aufruf zum Erstellen des Termins stattfinden.
+      // Die `onSave` des Modals wäre der richtige Ort dafür.
+      alert('Termin einfügen ist noch nicht vollständig implementiert. Bitte Änderungen manuell speichern.');
+    } else {
+      // Wenn nichts kopiert ist, verhalte dich wie ein Klick auf einen Zeitbereich (für die Erstellung)
+      handleSelectFromCalendar({ startStr: info.dateStr });
+    }
+  }, [copiedAppointment, handleSelectFromCalendar]);
 
-    setCalendarAppointments([...calendarAppointments, newApp]);
-    setHasChanges(true);
-    setCopiedAppointment(null);
-  };
+
+  // NEU: Callback für das Speichern/Aktualisieren eines Termins aus dem AppointmentModal
+  // Dies ist der zentrale Punkt, wo das Dashboard die Daten vom Modal entgegennimmt und verarbeitet
+  const handleSaveAppointmentFromModal = useCallback(async (appointmentDataFromModal) => {
+    console.log('📤 Dashboard: handleSaveAppointmentFromModal aufgerufen', appointmentDataFromModal);
+    try {
+      const isEditing = !!initialEventDataForModal?.id; // Prüfen, ob wir einen bestehenden Event bearbeiten
+
+      const endpoint = isEditing
+        ? `/api/appointments/${initialEventDataForModal.id}`
+        : '/api/book-appointments';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const payload = {
+        thema: appointmentDataFromModal.thema,
+        location: appointmentDataFromModal.location,
+        start_time: appointmentDataFromModal.start_time,
+        end_time: appointmentDataFromModal.end_time,
+        // Die user_id im Payload muss korrekt gesetzt werden
+        user_id: user?.role === 'staff' ? appointmentDataFromModal.user_id : user?.id,
+        // Weitere Daten, die das Backend benötigt (z.B. user_id des eingeloggten Benutzers, etc.)
+      };
+
+      const response = await fetch(endpoint, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Fehler beim ${isEditing ? 'Aktualisieren' : 'Erstellen'} des Termins.`);
+      }
+
+      alert(`✅ Termin erfolgreich ${isEditing ? 'aktualisiert' : 'gebucht'}.`);
+
+      // "Zuletzt verwendet"-States aktualisieren, basierend auf den Daten aus dem Modal
+      setLastUsedTitle(appointmentDataFromModal.thema);
+      setLastUsedLocation(appointmentDataFromModal.location);
+      // Die Dauer wird im Modal berechnet und nicht direkt als Prop übergeben,
+      // aber wir können sie aus start_time und end_time ableiten.
+      const duration = Math.floor((new Date(appointmentDataFromModal.end_time).getTime() - new Date(appointmentDataFromModal.start_time).getTime()) / 60000);
+      setLastUsedDuration(duration);
+
+
+      setIsAppointmentModalOpen(false); // Modal schließen
+      setInitialEventDataForModal(null); // Bearbeitungsdaten zurücksetzen
+      setSelectedDateAndTimeForModal(null); // Reset der Initialzeit
+
+      await fetchAppointments(); // Termine im AuthContext neu laden
+    } catch (err) {
+      console.error('❌ Fehler beim Speichern des Termins:', err);
+      alert('Fehler beim Speichern des Termins: ' + err.message);
+    }
+  }, [user, fetchAppointments, initialEventDataForModal, setLastUsedTitle, setLastUsedLocation, setLastUsedDuration]);
+
 
   // Erstellen der Event-Objekte für FullCalendar
   const events = calendarAppointments.map((a) => ({
     id: a.id,
-    title: a.title || 'Termin',
+    title: a.title || a.thema || 'Termin',
     start: a.start_time,
     end: a.end_time,
     extendedProps: {
-      first_name: a.customer_first_name,
-      last_name: a.customer_last_name,
-      thema: a.title,
+      first_name: a.client_first_name,
+      last_name: a.client_last_name,
+      thema: a.thema || a.title,
       location: a.location,
+      user_id: a.user_id,
+      client_email: a.client_email,
+      client_phone_number: a.client_phone_number,
     }
   }));
-  
 
-  // --- Admin Statistiken ---
-  const fetchAdminStatistics = async () => {
-    setIsAdminLoading(true);
-    try {
-      const response = await fetch('http://localhost:3000/api/admin/statistics', { credentials: 'include' });
-      if (!response.ok) {
-        if (response.status === 401) { logout(); return; }
-        throw new Error(`Fehler beim Abrufen der Admin-Daten: ${response.statusText}`);
-      }
-      const data = await response.json();
-      setAdminStats(data);
-    } catch (error) {
-      console.error('Fehler beim Abrufen der Admin-Daten:', error);
-      setDashboardError('Fehler beim Laden der Admin-Daten.');
-    } finally {
-      setIsAdminLoading(false);
-    }
+    // Funktion zum Öffnen des Kunden-Details-Modals
+    const handleClientCardClick = (client) => {
+      setSelectedClient(client); // Speichert den geklickten Kunden
+      setShowClientDetailsModal(true); // Zeigt das Modal an
+    };
+
+  const renderAppointmentItem = (appointment, type) => {
+    const isExpanded = expandedAppointmentIds[appointment.id] === true;
+    const isEditingClientNote = editingNoteIds[appointment.id] === 'client';
+    const isEditingStaffNote = editingNoteIds[appointment.id] === 'staff';
+
+    const isClientNoteEditable = user?.role === 'client';
+    const isStaffNoteEditable = user?.role === 'staff' || user?.role === 'admin';
+
+    const startDate = new Date(appointment.start_time);
+    const durationMinutes = Math.floor((new Date(appointment.end_time) - startDate) / 60000);
+
+    const formattedDate = startDate.toLocaleDateString('de-DE', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const formattedTime = startDate.toLocaleTimeString('de-DE', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const clientNoteContent = appointment.client_note || 'Keine Notiz vorhanden.';
+    const staffNoteContent = appointment.staff_note || 'Keine Notiz vorhanden.';
+
+    const handleAppointmentClick = () => {
+      setExpandedAppointmentIds(prev => ({
+        ...prev,
+        [appointment.id]: !isExpanded
+      }));
+    };
+
+    return (
+      <div
+        key={appointment.id}
+        className={`appointment-item ${isExpanded ? 'expanded' : ''}`}
+        onClick={handleAppointmentClick}
+      >
+        <div className="appointment-info">
+          <div className="info-field">
+            <strong>
+              {appointment.title || appointment.thema || 'Termin'}
+            </strong>
+          </div>
+          <div className="info-field">
+            <p>🗓️<strong>Datum | Zeit:</strong> {formattedDate} | {formattedTime} Uhr </p>
+          </div>
+          <div className="info-field">
+            <p>🕒 <strong>Dauer:</strong> {durationMinutes} Minuten</p>
+          </div>
+          <div className="info-field">
+            {appointment.location && (
+              <p>📍 <strong>Ort:</strong> {appointment.location}</p>
+            )}
+          </div>
+          <div className="info-field">
+            {(appointment.staff_first_name || appointment.staff_last_name) && (
+              <p>👨‍🏫 <strong>Coach:</strong> {(appointment.staff_first_name || '') + ' ' + (appointment.staff_last_name || '')}</p>
+            )}
+          </div>
+          {(user?.role === 'staff' || user?.role === 'admin') && appointment.client_first_name && (
+            <div className="info-field">
+              <p>🙋‍♂️ <strong>Kunde:</strong> {appointment.client_first_name} {appointment.client_last_name}</p>
+            </div>
+          )}
+        </div>
+    
+        {/* Vereinheitlichte Anzeige für den Notizen-Hinweis mit externer CSS-Klasse */}
+        <p className="appointment-toggle-hint">
+          {isExpanded ? 'Notizen ausblenden' : 'Notizen anzeigen/aufklappen'}
+        </p>
+
+        {isExpanded && (
+          <div className="notes-section" onClick={(e) => e.stopPropagation()} >
+            {/* Kundennotiz-Bereich */}
+            <div className="note-container">
+              <h4>Ihre Notiz (Kunde):</h4>
+              {isClientNoteEditable ? (
+                <>
+                  <div
+                    id={`client-note-editor-${appointment.id}`}
+                    ref={(el) => (clientNoteEditorRef.current[appointment.id] = el)}
+                    className={`note-editor ${isEditingClientNote ? 'editing' : 'view-only'}`}
+                    contentEditable={isEditingClientNote}
+                    suppressContentEditableWarning={true}
+                    dangerouslySetInnerHTML={{ __html: appointment.client_note || '' }}
+                  ></div>
+                  <button
+                    className="save-note-button"
+                    onClick={() => {
+                      e.stopPropagation();
+                      if (isEditingClientNote) {
+                        saveNote(appointment.id, 'client');
+                      } else {
+                        setEditingNoteIds(prev => ({ ...prev, [appointment.id]: 'client' }));
+                      }
+                    }}
+                  >
+                    {isEditingClientNote ? 'Notiz speichern' : 'Notiz bearbeiten'}
+                  </button>
+                </>
+              ) : (
+                <div className="note-text" dangerouslySetInnerHTML={{ __html: clientNoteContent }}></div>
+              )}
+            </div>
+
+            {/* Mitarbeiternotiz-Anzeige (nur für Klienten) */}
+            {appointment.staff_note && user?.role === 'client' && ( // <-- HIER IST DIE ÄNDERUNG!
+              <div className="note-container staff-note-container">
+                <h4>Notiz vom Mitarbeiter:</h4>
+                <div className="note-text" dangerouslySetInnerHTML={{ __html: appointment.staff_note }}></div>
+                {/* Keine Bearbeitungsbuttons für den Klienten hier, da dies nur die Anzeige ist */}
+              </div>
+            )}
+
+            {/* Bearbeitbarer Bereich für Mitarbeiternotizen, nur für Staff/Admin */}
+            {(user?.role === 'staff' || user?.role === 'admin') && (
+              <div className="note-container"> {/* Optional: Klasse für Abgrenzung, wenn nötig */}
+                {/* Hier ist der Titel etwas allgemeiner gehalten, da es der Bearbeitungsbereich ist */}
+                <h4>Ihre Notiz (Coach):</h4>
+                {/* Die Prüfung `isStaffNoteEditable` ist hier impliziert durch die übergeordnete `user?.role` Bedingung */}
+                  <>
+                    <div
+                      id={`staff-note-editor-${appointment.id}`}
+                      ref={(el) => (staffNoteEditorRef.current[appointment.id] = el)} // <-- KORREKTUR HIER!
+                      className={`note-editor ${isEditingStaffNote ? 'editing' : 'view-only'}`}
+                      contentEditable={isEditingStaffNote}
+                      suppressContentEditableWarning={true}
+                      dangerouslySetInnerHTML={{ __html: appointment.staff_note || '' }}
+                    ></div>
+                    <button
+                      className="save-note-button"
+                      onClick={() => {
+                        if (isEditingStaffNote) {
+                          saveNote(appointment.id, 'staff');
+                        } else {
+                          setEditingNoteIds(prev => ({ ...prev, [appointment.id]: 'staff' }));
+                        }
+                      }}
+                    >
+                      {isEditingStaffNote ? 'Notiz speichern' : 'Notiz bearbeiten'}
+                    </button>
+                  </>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
-  // --- Mitarbeiter Statistiken ---
-  const fetchEmployeeStatistics = async () => {
-    setIsEmployeeLoading(true);
-    try {
-      // URL anpassen!
-      const response = await fetch('http://localhost:3000/api/staff/statistics', { credentials: 'include' });
-      if (!response.ok) {
-        if (response.status === 401) { logout(); return; }
-        throw new Error(`Fehler beim Abrufen der Mitarbeiter-Daten: ${response.statusText}`);
-      }
-      const data = await response.json();
-      setEmployeeStats(data);
-    } catch (error) {
-      console.error('Fehler beim Abrufen der Mitarbeiter-Daten:', error);
-      setDashboardError('Fehler beim Laden der Mitarbeiter-Daten.');
-    } finally {
-      setIsEmployeeLoading(false);
-    }
-  };
+  const saveNote = useCallback(async (appointmentId, type) => {
+    // 'type' ist 'client' oder 'staff' (entspricht dem Notiztyp, den du speichern willst)
 
-  // --- Notizen speichern ---
-  const saveNote = async (appointmentId, type) => {
-    const noteType = type === 'client' ? 'client_note' : 'staff_note';
-    const editorElement = clientNoteEditorRef.current[appointmentId];
+    // Wichtig: Jetzt verwenden wir den korrekten Ref basierend auf dem Typ
+    const editorElement = type === 'client'
+      ? clientNoteEditorRef.current[appointmentId]
+      : staffNoteEditorRef.current[appointmentId]; // <-- HIER: staffNoteEditorRef verwenden
+
     const noteContent = editorElement ? editorElement.innerHTML : '';
 
+    if (!user) {
+      alert('Sie sind nicht angemeldet.');
+      return;
+    }
+
+    let url = `http://localhost:3000/api/update-note`; // ALLE Notizen über diesen Endpunkt
+    let method = 'POST'; // Dieser Endpunkt erwartet POST
+
+    let requestBody = {
+      appointmentId: appointmentId,
+      note: noteContent,
+      type: type, // 'client' oder 'staff' - wichtig für das Backend
+    };
+
+    // Zusätzliche Prüfungen für die Benutzerrolle (optional, aber gut für die Sicherheit)
+    if (user.role === 'client' && type === 'staff') {
+        alert('Als Kunde dürfen Sie keine Mitarbeiternotizen bearbeiten.');
+        return;
+    }
+    // Keine explizite Prüfung für staff/admin auf client-notizen hier,
+    // da der Backend-Endpunkt das schon anhand der übergebenen user_id/staff_id regelt.
+
+
     try {
-      const response = await fetch(`http://localhost:3000/api/appointment/${appointmentId}/note`, {
-        method: 'POST',
+      const response = await fetch(url, {
+        method: method, // Immer POST für /api/update-note
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          // Stellen Sie sicher, dass dies dem Namen der Eigenschaft auf dem Server entspricht
-          clientNote: noteContent, // Oder staffNote je nach 'type'
-        }),
+        body: JSON.stringify(requestBody), // Dynamisch erstellten Body verwenden
         credentials: 'include',
       });
 
@@ -337,15 +893,10 @@ const Dashboard = () => {
         throw new Error(`Fehler beim Speichern der ${type} Notiz: ${response.status} ${errorText}`);
       }
 
-      // Aktualisiere den State der Termine im AuthContext, um die Notiz anzuzeigen
-      // Dies erfordert, dass AuthContext eine Funktion zum Aktualisieren von Terminen bereitstellt
-      // oder wir rufen fetchAppointments() auf, um die Termine neu zu laden.
-      await fetchAppointments(); // Lade alle Termine neu, um Notizänderungen anzuzeigen
+      await fetchAppointments(); // Lade Termine neu, um aktualisierte Notizen zu sehen
 
-      // Setze den Bearbeitungsstatus zurück
       setEditingNoteIds(prev => ({ ...prev, [appointmentId]: false }));
 
-      // Zeige die "Notiz gespeichert" Meldung
       setShowNoteSavedMessage(true);
       if (noteSavedTimeoutRef.current) {
         clearTimeout(noteSavedTimeoutRef.current);
@@ -358,257 +909,28 @@ const Dashboard = () => {
       console.error(`Fehler beim Speichern der ${type} Notiz:`, error);
       alert(`Fehler beim Speichern Ihrer ${type} Notiz. Bitte versuchen Sie es erneut. Details: ${error.message}`);
     }
-  };
+  }, [
+    user,
+    fetchAppointments,
+    setEditingNoteIds,
+    setShowNoteSavedMessage,
+    clientNoteEditorRef,
+    staffNoteEditorRef, // <-- HIER: staffNoteEditorRef als Abhängigkeit hinzufügen
+    noteSavedTimeoutRef,
+  ]);
 
-
-  const handleEventClick = (info) => {
-    const event = info.event;
-    const { title, start, end, extendedProps } = event;
-  
-    const fullName =
-      (extendedProps.first_name && extendedProps.last_name)
-        ? `${extendedProps.first_name} ${extendedProps.last_name}`
-        : title || 'Unbekannter Kunde';
-  
-    const isValidDate = (date) => date instanceof Date && !isNaN(date);
-  
-    const dateFormatter = new Intl.DateTimeFormat('de-DE', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  
-    const timeFormatter = new Intl.DateTimeFormat('de-DE', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    });
-  
-    const selected = {
-      fullName,
-      dateFormatted: isValidDate(start) ? dateFormatter.format(start) : 'Unbekanntes Datum',
-      timeRange: (isValidDate(start) && isValidDate(end))
-        ? `${timeFormatter.format(start)} – ${timeFormatter.format(end)}`
-        : 'Unbekannte Zeit',
-      location: extendedProps.location || 'Nicht angegeben',
-      thema: extendedProps.thema || 'Kein Thema angegeben',
-    };
-  
-    console.log('🧠 selectedAppointment gesetzt:', selected);
-  
-    setSelectedAppointment(selected);
-    setIsAppointmentDetailsModalOpen(true);
-  };  
-  
-  // --- Termin-Item Render Funktion ---
-  const renderAppointmentItem = (appointment, type) => {
-    const isExpanded = expandedAppointmentIds[appointment.id] === true;
-    const isEditing = editingNoteIds[appointment.id] === true;
-    const isClientNoteEditable = user?.role === 'customer';
-  
-    const startDate = new Date(appointment.start_time);
-    const durationMinutes = Math.floor((new Date(appointment.end_time) - startDate) / 60000);
-  
-    const formattedDate = startDate.toLocaleDateString('de-DE', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
-  
-    const formattedTime = startDate.toLocaleTimeString('de-DE', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  
-    const clientNoteContent = appointment.client_note || 'Keine Notiz vorhanden.';
-    const staffNoteContent = appointment.staff_note || 'Keine Notiz vorhanden.';
-  
-    return (
-      <div key={appointment.id} className={`appointment-item ${isExpanded ? 'expanded' : ''}`}>
-          <div className="appointment-info">
-          <div className="info-field">
-              <strong style={{ fontSize: '1.1em' }}>
-                {appointment.title || 'Termin'}
-              </strong>
-            </div>
-              <div className="info-field">
-              <p>🗓️<strong>Datum | Zeit:</strong>{formattedDate} | {formattedTime} Uhr </p>
-              </div>
-              <div className="info-field">
-              <p>🕒 <strong>Dauer:</strong>{durationMinutes} Minuten</p>
-              </div>
-              <div className="info-field">
-              {appointment.location && (
-                <p>📍 <strong>Ort:</strong> {appointment.location}</p>
-              )}
-              </div>
-              <div className="info-field">
-              {(appointment.staff_first_name || appointment.staff_last_name) && (
-                <p>👨‍🏫 <strong>Coach:</strong> {(appointment.staff_first_name || '') + ' ' + (appointment.staff_last_name || '')}</p>
-              )}
-              </div>
-            </div>
-  
-        <div className="appointment-actions">
-          <button
-            className="toggle-notes-button"
-            onClick={() =>
-              setExpandedAppointmentIds(prev => ({
-                ...prev,
-                [appointment.id]: !isExpanded
-              }))
-            }
-          >
-            {isExpanded ? 'Notizen ausblenden' : 'Notizen anzeigen'}
-          </button>
-        </div>
-  
-        {isExpanded && (
-          <div className="notes-section">
-            <div className="note-container">
-              <h4>Ihre Notiz:</h4>
-              {isClientNoteEditable ? (
-                <>
-                  <NoteFormattingButtons editorId={`client-note-editor-${appointment.id}`} />
-                  <div
-                    id={`client-note-editor-${appointment.id}`}
-                    ref={(el) => (clientNoteEditorRef.current[appointment.id] = el)}
-                    className={`note-editor ${isEditing ? 'editing' : 'view-only'}`}
-                    contentEditable={isEditing}
-                    suppressContentEditableWarning={true}
-                    dangerouslySetInnerHTML={{ __html: appointment.client_note || '' }}
-                  ></div>
-                  <button
-                    className="save-note-button"
-                    onClick={() => {
-                      if (isEditing) {
-                        saveNote(appointment.id, 'client');
-                      } else {
-                        setEditingNoteIds(prev => ({ ...prev, [appointment.id]: true }));
-                      }
-                    }}
-                  >
-                    {isEditing ? 'Notiz speichern' : 'Notiz bearbeiten'}
-                  </button>
-                </>
-              ) : (
-                <div className="note-text" dangerouslySetInnerHTML={{ __html: clientNoteContent }}></div>
-              )}
-            </div>
-  
-            <div className="note-container">
-              <h4>Notiz des Mitarbeiters:</h4>
-              <div className="note-text" dangerouslySetInnerHTML={{ __html: staffNoteContent }}></div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };  
-
-  const handleDatesSet = (arg) => {
+  const handleDatesSet = useCallback((arg) => {
     if (calendarTitleRef.current) {
       calendarTitleRef.current.textContent = arg.view.title;
     }
-  };
-  
-  // Funktion zum Erstellen eines neuen Termins (für Staff/Admin)
-  const handleCreateNewEvent = async () => {
-    try {
-      const payload = {
-        title: newEventTitle,
-        location: newEventLocation,
-        start_time: newEventStart,
-        end_time: newEventEnd,
-        // Wenn ein Kunde ausgewählt ist, füge dessen ID hinzu
-        ...(selectedCustomerId && { user_id: parseInt(selectedCustomerId) }),
-        // staff_id sollte automatisch vom Backend gesetzt werden
-        // da der Benutzer eingeloggt ist (oder explizit user.id senden)
-      };
+  }, [calendarTitleRef]);
 
-      const response = await fetch('/api/appointments', { // POST für neue Termine
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Fehler beim Erstellen des Termins');
-      }
-
-      setNewEventModalOpen(false);
-      // Formularfelder zurücksetzen
-      setNewEventTitle('');
-      setNewEventLocation('');
-      setNewEventStart('');
-      setNewEventEnd('');
-      setSelectedCustomerId(''); // Auch Kunden-ID zurücksetzen
-
-      await fetchAppointments(); // Termine im AuthContext aktualisieren
-      alert('Termin erfolgreich erstellt!');
-    } catch (error) {
-      console.error('Fehler beim Erstellen des Termins:', error);
-      alert('Fehler beim Erstellen des Termins: ' + error.message);
-    }
-  };
-
-  // Funktion zum Aktualisieren eines bestehenden Termins (für Staff/Admin)
-  const handleUpdateExistingEvent = async (eventId) => {
-    try {
-      const payload = {
-        title: newEventTitle,
-        location: newEventLocation,
-        start_time: newEventStart,
-        end_time: newEventEnd,
-        ...(selectedCustomerId && { user_id: parseInt(selectedCustomerId) }),
-      };
-
-      const response = await fetch(`/api/appointments/${eventId}`, { // PUT für bestehende Termine
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Fehler beim Aktualisieren des Termins');
-      }
-
-      setNewEventModalOpen(false);
-      setNewEventTitle('');
-      setNewEventLocation('');
-      setNewEventStart('');
-      setNewEventEnd('');
-      setSelectedCustomerId('');
-
-      await fetchAppointments(); // Termine im AuthContext aktualisieren
-      alert('Termin erfolgreich aktualisiert!');
-    } catch (error) {
-      console.error('Fehler beim Aktualisieren des Termins:', error);
-      alert('Fehler beim Aktualisieren des Termins: ' + error.message);
-    }
-  };
-
-
-  // --- Render-Logik für Ladezustand und Fehler ---
-  if (authLoading) { // 'authLoading' aus AuthContext verwenden
+  if (authLoading) {
     return <LoadingSpinner message="Lade Dashboard..." />;
   }
 
   if (!user) {
-    // Wenn authLoading false ist und kein Benutzer vorhanden ist,
-    // sollte dies durch den isLoggedIn-Check im useEffect abgefangen werden.
-    // Dieser Block ist eher ein Fallback.
-    return null; 
+    return null;
   }
 
   if (dashboardError) {
@@ -625,25 +947,22 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container">
-      {/* Header-Sektion */}
       <header className="dashboard-header">
-          <div className="header-left">
-              <a href="/">
-                <img src="/images/ReThinkCoaching Logo.webp" alt="Logo" className="header-logo" />
-              </a>
-            </div>
-            <div className="header-center">
-              <h1>Dashboard</h1>
-            </div>
-            <div className="header-right">
-              <p className="user-email">{user?.email}</p>
-            <button className="logout-button" onClick={handleLogout}>Logout</button>
-          </div>
+        <div className="header-left">
+          <a href="/">
+            <img src="/images/ReThinkCoaching Logo.webp" alt="Logo" className="header-logo" />
+          </a>
+        </div>
+        <div className="header-center">
+          <h1>Dashboard</h1>
+        </div>
+        <div className="header-right">
+          <p className="user-email">{user?.email}</p>
+          <button className="logout-button" onClick={handleLogout}>Logout</button>
+        </div>
       </header>
 
-
       <main>
-        {/* Admin-Bereich */}
         {user?.role === 'admin' && (
           <section id="admin-section" className="dashboard-section">
             <h2>Admin-Bereich</h2>
@@ -657,53 +976,223 @@ const Dashboard = () => {
           </section>
         )}
 
-        {/* Mitarbeiter-Bereich */}
         {user?.role === 'staff' && (
-            <section id="employee-section" className="dashboard-section">
-              <h2>Mitarbeiter-Bereich</h2>
+          <section id="staff-section" className="dashboard-section">
+            <h2>Mitarbeiter-Bereich</h2>
+            {/* Die Lade-Anzeige für Mitarbeiter-spezifische Daten wie Statistiken oder Kundenliste */}
+            {isstaffLoading ? (
+              <LoadingSpinner message="Lade Mitarbeiter-Daten..." />
+            ) : (
+              <>
+            <div className="staff-stats-container">
+              {staffStats && staffStats.monthlyCompletedSessions && staffStats.monthlyCompletedSessions.length > 0 ? (
+                (() => {
+                  const currentMonthIndex = new Date().getMonth(); // 0-11
+                  const lastMonthIndex = currentMonthIndex === 0 ? 11 : currentMonthIndex - 1; // 0-11
 
-              {isEmployeeLoading ? (
-                <LoadingSpinner message="Lade Mitarbeiter-Daten..." />
+                  const currentMonthData = staffStats.monthlyCompletedSessions.find(
+                    (data) => parseInt(data.month) === currentMonthIndex + 1
+                  );
+                  const lastMonthData = staffStats.monthlyCompletedSessions.find(
+                    (data) => parseInt(data.month) === lastMonthIndex + 1
+                  );
+
+                  return (
+                    <div className="stats-text"> {/* Dieser Container wird jetzt ein Flex-Container */}
+                      <span className="month-stat">
+                        <strong>Aktueller Monat</strong> ({monthNames[currentMonthIndex]}):{" "}
+                        {currentMonthData ? `${currentMonthData.count} Sitzungen` : "0 Sitzungen"}
+                      </span>
+                      <span className="month-stat">
+                        <strong>Letzter Monat</strong> ({monthNames[lastMonthIndex]}):{" "}
+                        {lastMonthData ? `${lastMonthData.count} Sitzungen` : "0 Sitzungen"}
+                      </span>
+                    </div>
+                  );
+                })()
               ) : (
-                <>
-                  <p id="employee-statistics">
-                    {employeeStats
-                      ? `Anzahl der erledigten Sitzungen: ${employeeStats.completedSessions}`
-                      : 'Fehler beim Laden der Mitarbeiter-Daten.'}
-                  </p>
-
-                  <div className="customer-selection">
-                    <label htmlFor="customer-select">👤 Kunde wählen:</label>
-                    <select
-                      id="customer-select"
-                      value={selectedCustomerId}
-                      onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    >
-                      <option value="">-- Kunde wählen --</option>
-                      {allCustomers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.first_name} {c.last_name} ({c.email})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <button
-                    id="open-calendar-button"
-                    className="open-calendar-button"
-                    onClick={() => setIsCalendarModalOpen(true)}
-                    disabled={!selectedCustomerId}
-                  >
-                    📅 Termin für Kunde reservieren
-                  </button>
-                </>
+                <p className="stats-text">Keine erledigten Sitzungen für das aktuelle Jahr gefunden.</p>
               )}
-            </section>
-          )}
 
-        {/* Kundenbereich */}
-        {user?.role === 'customer' && (
-          <section id="customer-section" className="dashboard-section">
+              {/* Button, um alle Monate anzuzeigen (jetzt innerhalb des neuen Containers) */}
+              {staffStats && staffStats.monthlyCompletedSessions && staffStats.monthlyCompletedSessions.length > 0 && (
+                <button onClick={() => setShowAllMonthsModal(true)} className="btn btn-secondary view-all-months-btn">
+                  Alle Monate anzeigen
+                </button>
+              )}
+            </div>
+
+            {/* MODAL FÜR ALLE MONATE */}
+            {showAllMonthsModal && (
+              <div className="modal-overlay"> {/* Styling für Overlay ist wichtig (position: fixed, full screen, background) */}
+                <div className="modal-content"> {/* Styling für Modal-Inhalt (background, padding, max-width, center) */}
+                  <h3>Alle bisherigen Monatsstatistiken</h3>
+                  {staffStats.monthlyCompletedSessions.length > 0 ? (
+                    <ul>
+                      {staffStats.monthlyCompletedSessions.map((data) => (
+                        <li key={data.month}>
+                          <strong>{monthNames[parseInt(data.month) - 1]}:</strong> {data.count} Sitzungen
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>Keine Monatsstatistiken verfügbar.</p>
+                  )}
+                  <button onClick={() => setShowAllMonthsModal(false)} className="btn">
+                    Schließen
+                  </button>
+                </div>
+              </div>
+            )}
+                        <div className="staff-clients-list">
+              <h3>Ihre zugewiesenen Kunden:</h3>
+              {myStaffclients.length > 0 ? (
+                <div className="clients-card-list">
+                  {myStaffclients.map(client => (
+                    // Jede Karte ist jetzt klickbar, um das Modal zu öffnen
+                    <div
+                      key={client.id}
+                      className="client-card"
+                      onClick={() => handleClientCardClick(client)}
+                      style={{ cursor: 'pointer' }} // Zeigt an, dass die Karte klickbar ist
+                    >
+                      <div className="card-header">
+                        <h4>{client.first_name} {client.last_name}</h4>
+                      </div>
+                      {/* card-body und card-actions wurden entfernt, da Details im Modal sind */}
+                      {/* Hier könnten Sie optional einen kleinen Pfeil oder ein Icon hinzufügen,
+                          das anzeigt, dass man klicken kann, um Details zu sehen. */}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p>Noch keine zugewiesenen Kunden gefunden.</p>
+              )}
+            </div>
+
+      {/* NEU: Kunden-Details-Modal */}
+      {showClientDetailsModal && selectedClient && (
+                    <div className="modal-overlay">
+                        <div className="modal-content client-details-modal-content">
+                            <h3>Details für {selectedClient.first_name} {selectedClient.last_name}</h3>
+
+                            {/* NEU: Grid-Container für die Kundendetails */}
+                            <div className="client-detail-grid">
+                                <p><strong>E-Mail:</strong></p>
+                                <p>{selectedClient.email}</p>
+
+                                <p><strong>Telefon:</strong></p>
+                                <p>{selectedClient.phone || '-'}</p> {/* Zeigt '-' an, wenn keine Nummer vorhanden */}
+
+                                {/* NEU: Adresse aus einzelnen Feldern zusammenfügen */}
+                                {/* Wir prüfen, ob mindestens eines der Adressfelder vorhanden ist, um die Adresse anzuzeigen */}
+                                {(selectedClient.street || selectedClient.street_nr || selectedClient.zip || selectedClient.city) && (
+                                    <>
+                                        <p><strong>Adresse:</strong></p>
+                                        <p>
+                                            {/* Zeigt Straße und Hausnummer an, falls vorhanden */}
+                                            {(selectedClient.street || selectedClient.street_nr) && (
+                                                <>
+                                                    {selectedClient.street && `${selectedClient.street}`}
+                                                    {selectedClient.street_nr && ` ${selectedClient.street_nr}`}
+                                                    <br/> {/* Zeilenumbruch für PLZ und Ort */}
+                                                </>
+                                            )}
+                                            {/* Zeigt PLZ und Ort an, falls vorhanden */}
+                                            {(selectedClient.zip || selectedClient.city) && (
+                                                <>
+                                                    {selectedClient.zip && `${selectedClient.zip}`}
+                                                    {selectedClient.city && ` ${selectedClient.city}`}
+                                                </>
+                                            )}
+                                        </p>
+                                    </>
+                                )}
+
+
+                                {selectedClient.birthdate && (
+                                    <>
+                                        <p><strong>Geburtsdatum:</strong></p>
+                                        {/* Datum im deutschen Format anzeigen */}
+                                        <p>{new Date(selectedClient.birthdate).toLocaleDateString('de-DE')}</p>
+                                    </>
+                                )}
+
+                                {selectedClient.created_at && (
+                                    <>
+                                        <p><strong>Kunde seit:</strong></p>
+                                        {/* Datum im deutschen Format anzeigen */}
+                                        <p>{new Date(selectedClient.created_at).toLocaleDateString('de-DE')}</p>
+                                    </>
+                                )}
+                            </div>
+                            {/* Ende des Grid-Containers */}
+
+                            <button
+                                onClick={() => setShowClientDetailsModal(false)}
+                                className="btn btn-primary mt-3"
+                            >
+                                Schließen
+                            </button>
+                        </div>
+                    </div>
+                )}
+            {/* Ende des Kunden-Details-Modals */}
+
+                {/* Der "Kalender öffnen"-Button, falls er weiterhin ein separates Modal öffnen soll */}
+                <button
+                  id="open-calendar-button"
+                  className="open-calendar-button"
+                  onClick={() => setIsCalendarModalOpen(true)}
+                >
+                  📅 Kalender öffnen
+                </button>
+
+                {/* --- NEUER BEREICH FÜR TERMINE (ANALOG ZUM KUNDENBEREICH) --- */}
+                <div id="staff-appointments"> {/* Eine eigene ID für den Mitarbeiter-Terminbereich */}
+                  {/* Verwende hier authLoading, da es die Ladezustände der Termine abdeckt */}
+                  {authLoading ? (
+                    <LoadingSpinner message="Lade Ihre Termine..." />
+                  ) : (
+                    <>
+                      {/* Fehleranzeige für den Terminabruf */}
+                      {dashboardError && <p className="error-message">Fehler beim Laden der Termine: {dashboardError}</p>}
+                      {/* Bedingte Anzeige, falls keine Termine für den Mitarbeiter gefunden wurden */}
+                      {futureAppointments.length === 0 && pastAppointments.length === 0 ? (
+                        <p id="no-staff-appointments-message">Keine Termine gefunden.</p>
+                      ) : (
+                        <>
+                          {/* Anzeige zukünftiger Termine */}
+                          {futureAppointments.length > 0 && (
+                            <div className="appointment-group">
+                              <h3>Zukünftige Termine (Ihre Coach-Termine)</h3> {/* Angepasster Titel */}
+                              {/* Mappt über die zukünftigen Termine und rendert sie mit renderAppointmentItem */}
+                              {futureAppointments.map(app => renderAppointmentItem(app, 'future'))}
+                            </div>
+                          )}
+                          {/* Anzeige vergangener Termine */}
+                          {pastAppointments.length > 0 && (
+                            <div className="appointment-group">
+                              <h3>Vergangene Termine (Ihre Coach-Termine)</h3> {/* Angepasster Titel */}
+                              {/* Mappt über die vergangenen Termine und rendert sie mit renderAppointmentItem */}
+                              {pastAppointments.map(app => renderAppointmentItem(app, 'past'))}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+                {showNoteSavedMessage && (
+                  <div id="note-saved-message">Ihre Notiz wurde gespeichert.</div>
+                )}
+              </>
+            )}
+          </section>
+        )}
+
+        {user?.role === 'client' && (
+          <section id="client-section" className="dashboard-section">
             <h2>Kundenbereich</h2>
             <button
               id="open-calendar-button"
@@ -713,13 +1202,12 @@ const Dashboard = () => {
               Termin reservieren
             </button>
 
-            <div id="customer-appointments">
-              {/* Hier Ladezustand für Termine verwenden */}
-              {appointmentsLoading ? ( // <- appointmentsLoading aus useAppointments hook
+            <div id="client-appointments">
+              {authLoading ? (
                 <LoadingSpinner message="Lade Ihre Termine..." />
               ) : (
                 <>
-                  {appointmentsError && <p className="error-message">Fehler beim Laden der Termine: {appointmentsError.message || String(appointmentsError)}</p>}
+                  {dashboardError && <p className="error-message">Fehler beim Laden der Termine: {dashboardError}</p>}
                   {futureAppointments.length === 0 && pastAppointments.length === 0 ? (
                     <p id="no-appointments-message">Keine Termine gefunden.</p>
                   ) : (
@@ -742,121 +1230,111 @@ const Dashboard = () => {
               )}
             </div>
 
-            {/* Notiz gespeichert Meldung */}
             {showNoteSavedMessage && (
               <div id="note-saved-message">Ihre Notiz wurde gespeichert.</div>
             )}
           </section>
         )}
-        
 
-        {/* Calendar Modal */}
         {isCalendarModalOpen && (
-          <CalendarComponent 
-          setIsCalendarModalOpen={setIsCalendarModalOpen} 
-          user={user}   
-          onEventClick={(info) => {
-            // Wenn der User Staff oder Admin ist und bearbeiten darf
-            if (user?.role === 'staff' || user?.role === 'admin') {
-              const eventToEdit = calendarAppointments.find(app => app.id === parseInt(info.event.id));
-              if (eventToEdit) {
-                setNewEventTitle(eventToEdit.title || '');
-                setNewEventLocation(eventToEdit.location || '');
-                setNewEventStart(eventToEdit.start_time?.slice(0, 16) || '');
-                setNewEventEnd(eventToEdit.end_time?.slice(0, 16) || '');
-                setSelectedCustomerId(eventToEdit.user_id ? String(eventToEdit.user_id) : ''); // Kunden-ID setzen
-                setIsEditingExistingEvent(info.event.id); // Speichern der Event-ID, die bearbeitet wird
-                setNewEventModalOpen(true); // Modal öffnen
-              }
-            } else { // Für Kunden nur Details anzeigen
-              handleEventClick(info);
-            }
-          }}
-          selectedCustomerId={selectedCustomerId}
-          events={events} // Verwenden Sie 'events', die von 'calendarAppointments' abgeleitet sind
-          calendarRef={calendarRef}
-          onEventDrop={handleEventDrop}
-          onDateClick={handleDateClick}
-          // handleSelect ist noch nicht definiert, eventuell fehlt sie
-          // handleSelect={handleSelect} 
-          handleDatesSet={handleDatesSet}
+          <div className="calendar-modal-wrapper">
+            <div className="modal-content">
+              <span className="close-button" onClick={() => setIsCalendarModalOpen(false)}>&times;</span>
+              <h2 ref={calendarTitleRef}>Kalender</h2>
+              <CalendarComponent
+                user={user}
+                onEventClick={onEventClick}
+                events={events}
+                calendarRef={calendarRef}
+                onEventDrop={handleEventDrop}
+                handleDatesSet={handleDatesSet}
+                handleSelectFromCalendar={handleSelectFromCalendar}
+              />
+            </div>
+          </div>
+        )}
+
+        {isAppointmentDetailsModalOpen && selectedAppointment && (
+          <div className="modal-overlay">
+            <div className="modal-content">
+              <h3>📅 Termin-Details</h3>
+              <button
+                onClick={() => triggerCopyAppointment(selectedAppointment)}
+                className="copy-button-inline"
+                title="Termin kopieren"
+              >
+                📋 Kopieren
+              </button>
+              <p><strong>Kunde:</strong> {selectedAppointment.fullName}</p>
+              <p><strong>Datum:</strong> {selectedAppointment.dateFormatted}</p>
+              <p><strong>Zeit:</strong> {selectedAppointment.timeRange}</p>
+              <p><strong>Ort:</strong> {selectedAppointment.location}</p>
+              <p><strong>Thema:</strong> {selectedAppointment.thema}</p>
+              <div className="button-row">
+                <button onClick={() => setIsAppointmentDetailsModalOpen(false)}>Schliessen</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Das neue/umbenannte AppointmentModal */}
+        {isAppointmentModalOpen && (user?.role === 'staff' || user?.role === 'admin' || user?.role === 'client') && ( 
+          <AppointmentModal
+            isOpen={isAppointmentModalOpen}
+            onClose={() => {
+              setIsAppointmentModalOpen(false);
+              setInitialEventDataForModal(null);
+              setSelectedDateAndTimeForModal(null);
+            }}
+            initialEventData={initialEventDataForModal}
+            selectedDateAndTime={selectedDateAndTimeForModal}
+            onSave={handleSaveAppointmentFromModal}
+            user={user}
+            allclients={allclients}
+            lastUsedTitle={lastUsedTitle}
+            lastUsedLocation={lastUsedLocation}
+            lastUsedDuration={lastUsedDuration}
+            // Die set-Funktionen für "Zuletzt verwendet" müssen im Dashboard bleiben,
+            // da die Werte dort persistieren und von anderen Aktionen beeinflusst werden könnten.
+            // Sie werden hier nicht direkt an das Modal übergeben, da das Modal seinen onSave-Callback aufruft.
           />
         )}
 
-      {isAppointmentDetailsModalOpen && selectedAppointment && (
+
+      {showConfirmationModal && pendingEventDrop && originalDroppedEvent && (user?.role === 'staff' || user?.role === 'admin') && ( // Nur für Staff/Admin
         <div className="modal-overlay">
           <div className="modal-content">
-            <h3>📅 Termin-Details</h3>
-            <p><strong>Kunde:</strong> {selectedAppointment.fullName}</p>
-            <p><strong>Datum:</strong> {selectedAppointment.dateFormatted}</p>
-            <p><strong>Zeit:</strong> {selectedAppointment.timeRange}</p>
-            <p><strong>Ort:</strong> {selectedAppointment.location}</p>
-            <p><strong>Thema:</strong> {selectedAppointment.thema}</p>
+            <h3>Aktion für Termin "{originalDroppedEvent.title}"</h3>
+            <p>Was möchten Sie tun?</p>
+            <p>
+              Ursprünglich: {new Date(originalDroppedEvent.start).toLocaleString('de-CH')}
+              <br />
+              Neue Position: {new Date(pendingEventDrop.start).toLocaleString('de-CH')}
+            </p>
+            <div>
+              <input
+                type="checkbox"
+                id="sendSms"
+                checked={sendSmsNotification}
+                onChange={(e) => setSendSmsNotification(e.target.checked)}
+              />
+              <label htmlFor="sendSms">Kunden per SMS benachrichtigen</label>
+            </div>
             <div className="button-row">
-              <button onClick={() => setIsAppointmentDetailsModalOpen(false)}>Schliessen</button>
+              <button onClick={duplicateEventDrop} className="duplicate-button">Duplizieren</button>
+              <button onClick={confirmEventDrop}>Verschieben</button>
+              <button onClick={cancelEventDrop} className="cancel-button">Abbrechen</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal zum Erstellen/Bearbeiten von Terminen (für Staff/Admin) */}
-      {newEventModalOpen && (user?.role === 'staff' || user?.role === 'admin') && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>{isEditingExistingEvent ? 'Termin bearbeiten' : 'Neuen Termin erstellen'}</h3>
-            {user?.role === 'staff' && ( // Kunde kann nur vom Staff/Admin ausgewählt werden
-              <div className="form-group">
-                <label htmlFor="modal-customer-select">Kunde:</label>
-                <select
-                  id="modal-customer-select"
-                  value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  required
-                >
-                  <option value="">-- Kunden auswählen --</option>
-                  {allCustomers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.first_name} {c.last_name} ({c.email})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="form-group">
-              <label htmlFor="modal-title">Titel:</label>
-              <input type="text" id="modal-title" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label htmlFor="modal-location">Ort:</label>
-              <input type="text" id="modal-location" value={newEventLocation} onChange={(e) => setNewEventLocation(e.target.value)} />
-            </div>
-            <div className="form-group">
-              <label htmlFor="modal-start">Startzeit:</label>
-              <input type="datetime-local" id="modal-start" value={newEventStart} onChange={(e) => setNewEventStart(e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label htmlFor="modal-end">Endzeit:</label>
-              <input type="datetime-local" id="modal-end" value={newEventEnd} onChange={(e) => setNewEventEnd(e.target.value)} required />
-            </div>
-            <div className="button-row">
-              <button onClick={isEditingExistingEvent ? () => handleUpdateExistingEvent(isEditingExistingEvent) : handleCreateNewEvent}>
-                {isEditingExistingEvent ? 'Aktualisieren' : 'Erstellen'}
-              </button>
-              <button onClick={() => setNewEventModalOpen(false)}>Abbrechen</button>
-            </div>
+        {hasChanges && (user?.role === 'staff' || user?.role === 'admin') && (
+          <div className="calendar-action-buttons">
+            <button onClick={handleSaveChanges}>Änderungen speichern</button>
+            <button onClick={handleReset}>Zurücksetzen</button>
           </div>
-        </div>
-      )}
-
-
-      {/* Speichern/Zurücksetzen Buttons für Kalenderänderungen */}
-      {hasChanges && (user?.role === 'staff' || user?.role === 'admin') && (
-        <div className="calendar-action-buttons">
-          <button onClick={handleSaveChanges}>Änderungen speichern</button>
-          <button onClick={handleReset}>Zurücksetzen</button>
-        </div>
-      )}
-
+        )}
       </main>
     </div>
   );

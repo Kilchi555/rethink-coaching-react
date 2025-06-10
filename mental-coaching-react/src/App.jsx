@@ -21,12 +21,7 @@ import ProtectedRoute from './components/ProtectedRoute'; // Wichtig: Die von un
 // NEU: Nur das zentrale Dashboard importieren und NICHT lazy laden,
 // da es alle Rollen abdeckt und oft direkt benötigt wird.
 import Dashboard from './components/Dashboard'; 
-
-// ALT: Diese Lazy-Imports sind NICHT mehr notwendig und können entfernt werden:
-// const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard')); // <-- ENTFERNEN
-// const StaffDashboard = lazy(() => import('./components/dashboards/StaffDashboard')); // <-- ENTFERNEN
-// const CustomerDashboard = lazy(() => import('./components/dashboards/Dashboard')); // <-- ENTFERNEN (da jetzt direkt importiert)
-
+import Register from './components/Register';
 
 function App() {
   const location = useLocation();
@@ -66,6 +61,7 @@ function App() {
             </>
           } />
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           
           {/* ALT: Diese Route ist NICHT mehr notwendig und kann entfernt werden,
                   da SwitchDashboard nicht mehr existiert und die Rolle direkt im AuthContext geprüft wird. */}
@@ -76,9 +72,9 @@ function App() {
 
           {/* NEU: Alle rollenbasierten Dashboard-Routen verwenden nun das EINE zentrale Dashboard */}
           <Route
-            path="/customer"
+            path="/client"
             element={
-              <ProtectedRoute requiredRole="customer">
+              <ProtectedRoute requiredRole="client">
                 <Dashboard /> {/* Hier das zentrale Dashboard verwenden */}
               </ProtectedRoute>
             }
@@ -99,14 +95,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Optional: Eine Standard-Dashboard-Route, falls kein spezifischer Pfad passt */}
-          {/* <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} /> */}
-          {/* WICHTIG: Wenn Sie '/dashboard' als primären Zielpfad nach dem Login verwenden möchten,
-                       müssen Sie die Login-Logik so anpassen, dass sie zu '/dashboard' navigiert
-                       und dann das Dashboard selbst die Benutzerrolle prüft, ODER den
-                       ProtectedRoute ohne requiredRole verwenden.
-                       Aktuell navigiert Login.jsx zu /admin, /staff, /customer. */}
 
         </Routes>
       </Suspense>

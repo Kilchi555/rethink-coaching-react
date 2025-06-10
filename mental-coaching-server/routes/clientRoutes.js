@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 
-// 🧍 CUSTOMER: Eigene Termine laden
-router.get('/customer/appointments', async (req, res) => {
+// 🧍 client: Eigene Termine laden
+router.get('/client/appointments', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT a.*, u2.first_name AS staff_first_name, u2.last_name AS staff_last_name
@@ -20,8 +20,8 @@ router.get('/customer/appointments', async (req, res) => {
   }
 });
 
-// 🧍 CUSTOMER: Eigene Notiz bearbeiten
-router.put('/customer/appointments/:id/note', async (req, res) => {
+// 🧍 client: Eigene Notiz bearbeiten
+router.put('/client/appointments/:id/note', async (req, res) => {
   const { client_note } = req.body;
   try {
     const result = await pool.query(
@@ -49,7 +49,7 @@ router.put('/customer/appointments/:id/note', async (req, res) => {
 router.get('/staff/appointments', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT a.*, u.first_name AS customer_first_name, u.last_name AS customer_last_name
+      `SELECT a.*, u.first_name AS client_first_name, u.last_name AS client_last_name
        FROM appointments a
        LEFT JOIN users u ON a.user_id = u.id
        WHERE a.staff_id = $1
@@ -65,7 +65,7 @@ router.get('/staff/appointments', async (req, res) => {
 
 // 🧑‍🏫 STAFF: Eigene Notiz bearbeiten
 router.put('/staff/appointments/:id/note', async (req, res) => {
-  const { employee_note } = req.body;
+  const { staff_note } = req.body;
   try {
     const result = await pool.query(
       'SELECT staff_id FROM appointments WHERE id = $1',
@@ -78,8 +78,8 @@ router.put('/staff/appointments/:id/note', async (req, res) => {
     }
 
     const update = await pool.query(
-      'UPDATE appointments SET employee_note = $1 WHERE id = $2 RETURNING *',
-      [employee_note, req.params.id]
+      'UPDATE appointments SET staff_note = $1 WHERE id = $2 RETURNING *',
+      [staff_note, req.params.id]
     );
     res.json(update.rows[0]);
   } catch (err) {

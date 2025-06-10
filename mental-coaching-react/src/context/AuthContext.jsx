@@ -1,14 +1,12 @@
 // src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  // Initialisiere user mit null und loading mit true.
-  // Wir gehen davon aus, dass wir beim Start immer prüfen müssen, ob ein Benutzer eingeloggt ist.
   const [user, setUser] = useState(null); 
-  const [loading, setLoading] = useState(true); // WICHTIG: Auf true setzen, da eine Prüfung erfolgt
+  const [loading, setLoading] = useState(true); 
   const [futureAppointments, setFutureAppointments] = useState([]);
   const [pastAppointments, setPastAppointments] = useState([]);
   const navigate = useNavigate();
@@ -20,11 +18,9 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
-  // 🔄 checkUser: Überprüft den Benutzerstatus beim Laden der Komponente.
-  // Diese Funktion wird jetzt beim Mounten des AuthProviders einmalig ausgeführt.
   const checkUser = async () => {
     console.log('🔄 AuthContext: Führe initiale Benutzerprüfung durch...');
-    setLoading(true); // Setze Ladezustand auf true, während die Prüfung läuft
+    setLoading(true); 
     try {
       const response = await fetch('/api/user', {
         method: 'GET',
@@ -32,7 +28,7 @@ export const AuthProvider = ({ children }) => {
         credentials: 'include',
       });
       
-      if (!isMounted.current) return; // Frühzeitiger Exit, falls unmounted
+      if (!isMounted.current) return; 
 
       if (response.ok) {
         const data = await response.json();
@@ -50,11 +46,12 @@ export const AuthProvider = ({ children }) => {
           phone: data.phone
         });
         console.log('✅ AuthContext: Benutzer-Session gefunden.');
-        await fetchAppointments(); // Lade Termine für den gefundenen Benutzer
+        // Termine laden, nachdem der Benutzer gesetzt wurde
+        // (fetchAppointments wird jetzt explizit den 'user'-State lesen)
       } else {
         console.log('⚠️ AuthContext: Keine Benutzer-Session gefunden.');
         setUser(null);
-        setFutureAppointments([]); // Termine leeren, wenn kein Benutzer
+        setFutureAppointments([]); 
         setPastAppointments([]);
       }
     } catch (error) {
@@ -66,19 +63,105 @@ export const AuthProvider = ({ children }) => {
       }
     } finally {
       if (isMounted.current) { 
-        setLoading(false); // Ladevorgang beendet
+        setLoading(false); 
       }
     }
   };
   
+  // fetchAppointments ist jetzt eine Abhängigkeit des useEffects,
+  // der die Termine lädt, um sicherzustellen, dass 'user' aktuell ist.
+  const fetchAppointments = useCallback(async () => {
+    console.log('📅 AuthContext: Lade Termine...');
+    try {
+      if (!user) { 
+        console.log('AuthContext: Kein User angemeldet, überspringe Terminladen.');
+        setFutureAppointments([]);
+        setPastAppointments([]);
+        return;
+      }
+
+      if (user.role === 'client') {
+        const [futureRes, pastRes] = await Promise.all([
+          fetch('/api/future-appointments', { credentials: 'include' }),
+          fetch('/api/past-appointments', { credentials: 'include' }),
+        ]);
+
+        let futureAppointmentsRaw = [];
+        if (futureRes.ok) {
+          const futureData = await futureRes.json();
+          // ANPASSUNG HIER: Nimm .listData oder das direkte Array
+          futureAppointmentsRaw = futureData.listData || futureData; 
+          console.log('Kunde: Rohdaten zukünftiger Termine:', futureAppointmentsRaw); 
+        } else {
+          console.error('Fehler beim Laden zukünftiger Termine (Kunde):', futureRes.status, futureRes.statusText);
+        }
+
+        let pastAppointmentsRaw = [];
+        if (pastRes.ok) {
+          const pastData = await pastRes.json();
+          // ANPASSUNG HIER: Nimm .listData oder das direkte Array
+          pastAppointmentsRaw = pastData.listData || pastData; 
+          console.log('Kunde: Rohdaten vergangener Termine:', pastAppointmentsRaw); 
+        } else {
+          console.error('Fehler beim Laden vergangener Termine (Kunde):', pastRes.status, pastRes.statusText);
+        }
+
+        if (isMounted.current) {
+          setFutureAppointments(futureAppointmentsRaw);
+          setPastAppointments(pastAppointmentsRaw);
+        }
+      } else if (user.role === 'staff' || user.role === 'admin') {
+        const response = await fetch('/api/staff/appointments', { credentials: 'include' });
+        if (response.ok) {
+          const allStaffAppointments = await response.json();
+          const now = new Date();
+          const future = allStaffAppointments.filter(app => new Date(app.start_time) >= now);
+          const past = allStaffAppointments.filter(app => new Date(app.start_time) < now);
+
+          if (isMounted.current) {
+            setFutureAppointments(future);
+            setPastAppointments(past);
+          }
+        } else {
+          console.error('Fehler beim Laden der Mitarbeiter-Termine:', response.status, response.statusText);
+          if (isMounted.current) {
+            setFutureAppointments([]);
+            setPastAppointments([]);
+          }
+        }
+      }
+
+    } catch (err) {
+      console.error('❌ AuthContext: Netzwerkfehler beim Laden der Termine:', err);
+      if (isMounted.current) {
+        setFutureAppointments([]);
+        setPastAppointments([]);
+      }
+    }
+  }, [user, isMounted]); // fetchAppointments hängt jetzt vom 'user'-Objekt ab
+
   // Führe checkUser einmalig beim Mounten des AuthProviders aus
   useEffect(() => {
     checkUser();
-  }, []); // Leeres Array als Abhängigkeit, um es nur einmal auszuführen
+  }, []); 
+
+  // Führe fetchAppointments aus, wenn der Benutzerstatus sich ändert und er eingeloggt ist
+  useEffect(() => {
+    if (user && !loading) { // Nur Termine laden, wenn user gesetzt und die initiale Ladephase beendet ist
+      console.log('AuthContext: User oder Ladezustand geändert, lade Termine neu...');
+      fetchAppointments();
+    } else if (!user && !loading) {
+      // Wenn der User null ist und nicht mehr geladen wird (z.B. nach Logout), Termine leeren
+      setFutureAppointments([]);
+      setPastAppointments([]);
+    }
+  }, [user, loading, fetchAppointments]);
+
 
   // 🔐 Login
   const login = async (userId, email, role, first_name, last_name, street, street_nr, zip, city, phone) => {
     if (isMounted.current) { 
+      // setUser löst den obigen useEffect aus, der dann fetchAppointments aufruft
       setUser({ 
         id: userId, 
         email, 
@@ -92,8 +175,9 @@ export const AuthProvider = ({ children }) => {
         phone 
       });
     }
-    console.log('✅ AuthContext: Login erfolgreich, lade Termine...');
-    await fetchAppointments(); // Nach erfolgreichem Login Termine laden
+    console.log('✅ AuthContext: Login erfolgreich. Termine werden im useEffect geladen.');
+    // fetchAppointments wird hier nicht mehr direkt aufgerufen,
+    // da es der useEffect beim Setzen des Users übernimmt.
   };
 
   // 🚪 Logout
@@ -105,18 +189,13 @@ export const AuthProvider = ({ children }) => {
         credentials: 'include',
       });
 
-      if (!isMounted.current) return; // Frühzeitiger Exit, falls unmounted
+      if (!isMounted.current) return; 
 
       if (response.ok) {
         setUser(null);
         setFutureAppointments([]);
         setPastAppointments([]);
         console.log('👋 AuthContext: Erfolgreich ausgeloggt.');
-        // Optional: Hier könnten Sie auch navigate('/login') aufrufen,
-        // oder dies der Komponente überlassen, die logout aufruft.
-        // Da Login.jsx das schon macht, lassen wir es hier auskommentiert,
-        // um keine doppelten Navigationsbefehle zu haben.
-        // navigate('/login'); 
       } else {
         console.error('❌ AuthContext: Logout auf dem Server fehlgeschlagen.');
       }
@@ -124,68 +203,21 @@ export const AuthProvider = ({ children }) => {
       console.error('❌ AuthContext: Fehler während des Logout-Fetches:', error);
     }
   };
-
-  // 📅 Termine laden
-  const fetchAppointments = async () => {
-    console.log('📅 AuthContext: Lade Termine...');
-    // Keine isMounted.current Prüfung bei den einzelnen setStates hier,
-    // da diese Funktion nur aufgerufen wird, wenn der Context aktiv ist
-    // und der Benutzer eingeloggt ist (oder gerade eingeloggt wurde).
-    // React's Scheduler ist intelligent genug, unmounted Component-Updates zu ignorieren.
-    try {
-      const [futureRes, pastRes] = await Promise.all([
-        fetch('/api/future-appointments', { credentials: 'include' }),
-        fetch('/api/past-appointments', { credentials: 'include' }),
-      ]);
-  
-      if (futureRes.ok) {
-        const futureData = await futureRes.json();
-        if (isMounted.current) { // isMounted ist hier noch sinnvoll für den Fall, dass ein fetch lange dauert
-          setFutureAppointments(futureData.listData || []);
-        }
-      } else {
-        if (isMounted.current) {
-          setFutureAppointments([]); 
-        }
-        console.error('Fehler beim Laden zukünftiger Termine:', futureRes.status, futureRes.statusText);
-      }
-      
-      if (pastRes.ok) {
-        const pastData = await pastRes.json();
-        if (isMounted.current) {
-          setPastAppointments(pastData.listData || []);
-        }
-      } else {
-        if (isMounted.current) {
-          setPastAppointments([]); 
-        }
-        console.error('Fehler beim Laden vergangener Termine:', pastRes.status, pastRes.statusText);
-      }
-  
-    } catch (err) {
-      console.error('❌ AuthContext: Netzwerkfehler beim Laden der Termine:', err);
-      if (isMounted.current) {
-        setFutureAppointments([]);
-        setPastAppointments([]);
-      }
-    }
-  };
   
   const authContextValue = {
     user,
     isLoggedIn: !!user,
-    loading, // Dies ist der Ladezustand für die initiale Prüfung
+    loading, 
     login,
     logout,
-    futureAppointments, // Wird jetzt von hier bereitgestellt
-    pastAppointments,   // Wird jetzt von hier bereitgestellt
-    fetchAppointments,  // Funktion zum manuellen Neuladen der Termine
+    futureAppointments, 
+    pastAppointments,   
+    fetchAppointments,  
   };
 
   console.log('ℹ️ AuthContext: Aktueller Loading-Status:', loading); 
   console.log('ℹ️ AuthContext: Aktueller User-Status:', user); 
 
-  // Zeige einen Lade-Spinner, solange der AuthProvider den Benutzerstatus prüft.
   if (loading) {
     return <div className="auth-loading-spinner">Authentifizierung wird geprüft...</div>;
   }

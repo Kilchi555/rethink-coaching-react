@@ -8,10 +8,8 @@ const session = require('express-session');
 const path = require('path');
 const cors = require('cors');
 const adminRoutes = require('./routes/adminRoutes');
-const customerRoutes = require('./routes/customerRoutes');
+const clientRoutes = require('./routes/clientRoutes');
 const staffRoutes = require('./routes/staffRoutes');
-
-
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -53,9 +51,8 @@ app.use(session({
   }
 }));
 app.use('/api/admin', adminRoutes);
-app.use('/api/customer', customerRoutes);
+app.use('/api/client', clientRoutes);
 app.use('/api/staff', staffRoutes);
-
 
 console.log('*** Vor dem Definieren von buildPath ***');
 // Definiere den Pfad zu deinem Frontend-Build-Verzeichnis
@@ -223,9 +220,9 @@ app.get('/api/past-appointments', async (req, res) => {
       a.start_time,
       a.end_time,
       a.location,
-      u.email AS customer_email,
-      u.first_name AS customer_first_name,
-      u.last_name AS customer_last_name,
+      u.email AS client_email,
+      u.first_name AS client_first_name,
+      u.last_name AS client_last_name,
       s.email AS staff_email,
       s.first_name AS staff_first_name,
       s.last_name AS staff_last_name,
@@ -254,15 +251,15 @@ app.get('/api/past-appointments', async (req, res) => {
         thema: row.title,
         ort: row.location,
         kunde: {
-          email: row.customer_email,
-          name: `${row.customer_first_name} ${row.customer_last_name}`
+          email: row.client_email,
+          name: `${row.client_first_name} ${row.client_last_name}`
         },
         mitarbeiter: {
           email: row.staff_email,
           name: `${row.staff_first_name} ${row.staff_last_name}`
         },
         notizen: {
-          kunde: row.client_note,
+          client: row.client_note,
           staff: row.staff_note
         }
       },
@@ -299,9 +296,9 @@ app.get('/api/future-appointments', async (req, res) => {
     a.start_time,
     a.end_time,
     a.location,
-    u.email AS customer_email,
-    u.first_name AS customer_first_name,
-    u.last_name AS customer_last_name,
+    u.email AS client_email,
+    u.first_name AS client_first_name,
+    u.last_name AS client_last_name,
     s.email AS staff_email,
     s.first_name AS staff_first_name,
     s.last_name AS staff_last_name,
@@ -330,15 +327,15 @@ app.get('/api/future-appointments', async (req, res) => {
         thema: row.title,
         ort: row.location,
         kunde: {
-          email: row.customer_email,
-          name: `${row.customer_first_name} ${row.customer_last_name}`
+          email: row.client_email,
+          name: `${row.client_first_name} ${row.client_last_name}`
         },
         mitarbeiter: {
           email: row.staff_email,
           name: `${row.staff_first_name} ${row.staff_last_name}`
         },
         notizen: {
-          kunde: row.client_note,
+          client: row.client_note,
           staff: row.staff_note
         }
       },
@@ -440,63 +437,111 @@ app.get('/api/staff-user-notes', async (req, res) => {
 });
 
 app.post('/api/update-note', async (req, res) => {
-  const { appointmentId, note, type } = req.body;
-  const userId = req.session.userId;
-
   console.log('>>> /api/update-note wurde aufgerufen!');
+  const { appointmentId, note, type } = req.body;
+  const userId = req.session.userId; // Annahme: userId ist in der Session verfügbar
+
+  // Fügen Sie diesen Log hinzu, um die empfangenen Daten zu überprüfen
+  console.log('Backend erhielt Notiz-Payload:', { appointmentId, note, type, userIdFromSession: userId });
 
   if (!userId) {
+    console.log('Fehler: Benutzer nicht authentifiziert. userId fehlt in der Session.');
     return res.status(401).json({ error: 'Nicht authentifiziert.' });
   }
 
-  if (!appointmentId || !note || !type) {
+  // Diese Prüfung sollte nun nicht mehr der Grund für den 400er sein, da der Frontend-Payload korrekt ist.
+  if (typeof appointmentId === 'undefined' || appointmentId === null || typeof note === 'undefined' || note === null || !type) {
+    console.log('Fehler: Erforderliche Parameter fehlen oder sind ungültig.');
     return res.status(400).json({ error: 'Termin-ID, Notiz und Typ sind erforderlich.' });
   }
 
   try {
-    const appointmentResult = await pool.query(
-      'SELECT * FROM appointments WHERE id = $1 AND (user_id = $2 OR staff_id = $2)',
-      [appointmentId, userId]
+    // 1. Überprüfung, ob der Termin existiert und die IDs für die Berechtigungsprüfung abrufen
+    console.log(`Überprüfe Termin ${appointmentId} auf Existenz und Rollen...`);
+    const appointmentCheck = await pool.query(
+      'SELECT id, user_id, staff_id FROM appointments WHERE id = $1',
+      [appointmentId]
     );
 
-    if (appointmentResult.rows.length === 0) {
-      return res.status(403).json({ error: 'Du bist nicht berechtigt, diese Notiz zu bearbeiten.' });
+    if (appointmentCheck.rows.length === 0) {
+      console.log(`Fehler: Termin mit ID ${appointmentId} nicht gefunden. Rückgabe 404.`);
+      return res.status(404).json({ error: 'Termin nicht gefunden.' });
     }
+    const appointment = appointmentCheck.rows[0];
+    console.log('Termin gefunden:', appointment);
 
-    let updateQuery;
-    let params;
+    // 2. Berechtigungsprüfung basierend auf Notiztyp und Benutzerrolle
+    if (type === 'client' && appointment.user_id !== userId) {
+        console.log(`Fehler: Zugriff verweigert. Benutzer ${userId} ist nicht Eigentümer des Kunden-Termins ${appointmentId}.`);
+        return res.status(403).json({ error: 'Sie sind nicht berechtigt, diese Kundennotiz zu bearbeiten.' });
+    }
+    if (type === 'staff' && appointment.staff_id !== userId) {
+        console.log(`Fehler: Zugriff verweigert. Benutzer ${userId} ist nicht der Staff dieses Termins ${appointmentId}.`);
+        return res.status(403).json({ error: 'Sie sind nicht berechtigt, diese Mitarbeiternotiz zu bearbeiten.' });
+    }
+    console.log(`Berechtigung für Benutzer ${userId} und Notiztyp ${type} für Termin ${appointmentId} OK.`);
 
-    if (type === 'customer') {
-      updateQuery = 'UPDATE appointments SET customer_note = $1 WHERE id = $2 AND user_id = $3';
-      params = [note, appointmentId, userId];
-    } else if (type === 'employee') {
-      updateQuery = 'UPDATE appointments SET employee_note = $1 WHERE id = $2 AND staff_id = $3';
-      params = [note, appointmentId, userId];
+    // 3. Bestimmen des Tabellennamens
+    let tableName;
+    if (type === 'client') {
+      tableName = 'client_notes';
+    } else if (type === 'staff') {
+      tableName = 'staff_notes';
     } else {
-      return res.status(400).json({ error: 'Ungultiger Notiztyp.' });
+      console.log(`Fehler: Ungültiger Notiztyp '${type}'. Rückgabe 400.`);
+      return res.status(400).json({ error: 'Ungültiger Notiztyp.' });
     }
+    console.log('Verwende Tabelle:', tableName);
 
-    const result = await pool.query(updateQuery, params);
+    // 4. Prüfen, ob bereits eine Notiz existiert (INSERT oder UPDATE)
+    console.log(`Prüfe auf existierende Notiz in ${tableName} für Termin ${appointmentId}...`);
+    const existingNoteResult = await pool.query(
+      `SELECT id FROM ${tableName} WHERE appointment_id = $1`,
+      [appointmentId]
+    );
+    console.log('Ergebnis der Existenzprüfung:', existingNoteResult.rows);
+
+    let result;
+    if (existingNoteResult.rows.length > 0) {
+      // Notiz aktualisieren
+      console.log(`Aktualisiere existierende Notiz in ${tableName}.`);
+      result = await pool.query(
+        `UPDATE ${tableName} SET note = $1 WHERE appointment_id = $2`,
+        [note, appointmentId]
+      );
+    } else {
+      // Neue Notiz einfügen
+      console.log(`Füge neue Notiz in ${tableName} ein.`);
+      result = await pool.query(
+        `INSERT INTO ${tableName} (appointment_id, note) VALUES ($1, $2)`,
+        [appointmentId, note]
+      );
+    }
+    console.log('Datenbankoperation abgeschlossen. rowCount:', result.rowCount);
 
     if (result.rowCount > 0) {
+      console.log('Notiz erfolgreich gespeichert. Rückgabe 200 OK.');
       return res.status(200).json({ message: 'Notiz erfolgreich gespeichert.' });
     } else {
-      return res.status(500).json({ error: 'Fehler beim Speichern der Notiz.' });
+      console.log('Fehler: Datenbankoperation fehlgeschlagen (rowCount 0). Rückgabe 500.');
+      return res.status(500).json({ error: 'Fehler beim Speichern/Aktualisieren der Notiz.' });
     }
 
   } catch (error) {
-    console.error('Fehler beim Aktualisieren der Notiz:', error);
+    // DIESER LOG IST ENTSCHEIDEND FÜR DIE FEHLERSUCHE!
+    console.error('FEHLER IM CATCH-BLOCK beim Aktualisieren der Notiz:', error);
+    // Wenn hier ein Fehler auftritt, sollte es immer ein 500er sein
     return res.status(500).json({ error: 'Fehler beim Aktualisieren der Notiz.' });
   }
 });
 
 // Handler zum Speichern/Aktualisieren der Kundennotiz fur einen bestimmten Termin
-app.post('/api/appointment/:appointmentId/note', async (req, res) => {
+app.post('/api/appointments/:appointmentId/note', async (req, res) => {
   const { appointmentId } = req.params;
   const { clientNote } = req.body;
   const userId = req.session.userId;
 
-  console.log(`>>> POST /api/appointment/${appointmentId}/note aufgerufen!`);
+  console.log(`>>> POST /api/appointments/${appointmentId}/note aufgerufen!`);
   console.log('Request Body:', req.body);
   console.log('Benutzer-ID aus Session:', userId);
 
@@ -552,7 +597,7 @@ app.post('/api/appointment/:appointmentId/note', async (req, res) => {
   }
 });
 
-app.post('/api/book-appointment', async (req, res) => {
+app.post('/api/book-appointments', async (req, res) => {
   const staffId = req.session.userId;
 
   if (!staffId) return res.status(401).json({ error: 'Nicht authentifiziert.' });
@@ -578,17 +623,17 @@ app.post('/api/book-appointment', async (req, res) => {
       return res.status(403).json({ error: 'Benutzerrolle konnte nicht ermittelt werden.' });
     }
 
-    let customerId = staffId; // Standard: Nutzer ist Kunde selbst
+    let clientId = staffId; // Standard: Nutzer ist Kunde selbst
     if (role === 'staff' && user_id) {
-      customerId = user_id;
+      clientId = user_id;
     }
 
     await pool.query(`
       INSERT INTO appointments (user_id, staff_id, start_time, end_time, title, location)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [customerId, staffId, start_time, end_time, thema, location]);
+    `, [clientId, staffId, start_time, end_time, thema, location]);
 
-    console.log(`📅 Neuer Termin: [${thema}] ${start_time} - ${end_time} @ ${location} (Kunde: ${customerId}, Staff: ${staffId})`);
+    console.log(`📅 Neuer Termin: [${thema}] ${start_time} - ${end_time} @ ${location} (Kunde: ${clientId}, Staff: ${staffId})`);
 
     res.status(200).json({ message: 'Termin erfolgreich gebucht.' });
 
@@ -598,16 +643,63 @@ app.post('/api/book-appointment', async (req, res) => {
   }
 });
 
+app.put('/api/book-appointments/:id', async (req, res) => { // <-- HIER IST DIE FEHLENDE ROUTE!
+  const appointmentId = req.params.id; // Die ID des zu aktualisierenden Termins
+  const staffId = req.session.userId; // Annahme: Staff ist der authentifizierte Benutzer
+
+  if (!staffId) {
+    return res.status(401).json({ error: 'Nicht authentifiziert.' });
+  }
+
+  // Die Daten, die du vom Frontend im Body für das Update erwartest
+  const { start_time, end_time, sendSms, old_start_time, old_end_time, client_first_name, client_last_name, client_phone_number } = req.body;
+
+  if (!start_time || !end_time) {
+    return res.status(400).json({ error: 'Start- und Endzeit sind Pflichtfelder für das Update.' });
+  }
+
+  try {
+    const result = await pool.query(`
+      UPDATE appointments
+      SET start_time = $1, end_time = $2
+      WHERE id = $3 AND staff_id = $4
+      RETURNING *;
+    `, [start_time, end_time, appointmentId, staffId]);
+
+    if (result.rowCount === 0) {
+      // Wenn keine Zeile aktualisiert wurde, bedeutet das, dass der Termin nicht gefunden wurde
+      // oder der Staff keine Berechtigung hat, ihn zu ändern.
+      return res.status(404).json({ error: 'Termin nicht gefunden oder keine Berechtigung zum Aktualisieren.' });
+    }
+
+    // --- SMS-Versand Logik (optional, wie besprochen) ---
+    if (sendSms && client_phone_number) {
+      const oldStart = new Date(old_start_time).toLocaleString('de-CH');
+      const newStart = new Date(start_time).toLocaleString('de-CH');
+      const clientName = `${client_first_name || ''} ${client_last_name || ''}`.trim();
+      const smsMessage = `Hallo ${clientName},\nIhr Termin wurde verschoben von ${oldStart} auf ${newStart}. Bitte bestätigen Sie die Änderung.`;
+
+      console.log(`SMS-Benachrichtigung an ${client_phone_number} gesendet: ${smsMessage}`);
+    }
+
+    console.log(`✅ Termin ID ${appointmentId} erfolgreich aktualisiert.`);
+    res.status(200).json({ message: 'Termin erfolgreich aktualisiert.', appointment: result.rows[0] });
+
+  } catch (err) {
+    console.error(`❌ Fehler beim Aktualisieren von Termin ID ${appointmentId}:`, err);
+    res.status(500).json({ error: 'Fehler beim Aktualisieren des Termins.' });
+  }
+});
 
 
-app.get('/api/all-customers', async (req, res) => {
+app.get('/api/all-clients', async (req, res) => {
   if (!req.session.userId || req.session.role !== 'staff') {
     return res.status(401).json({ error: 'Nicht autorisiert.' });
   }
 
   try {
     const result = await pool.query(
-      `SELECT id, first_name, last_name, email FROM users WHERE role = 'customer' ORDER BY last_name`
+      `SELECT id, first_name, last_name, email FROM users WHERE role = 'client' ORDER BY last_name`
     );
     res.json(result.rows);
   } catch (err) {
@@ -650,6 +742,66 @@ app.post('/api/log-unrecognized-role', async (req, res) => {
   console.log('📝 Unrecognized role logged:', { role, user, timestamp });
   res.status(200).json({ success: true });
 });
+app.put('/api/appointments/:id', async (req, res) => { // Oder '/api/book-appointments/:id'
+  const appointmentId = req.params.id;
+  const staffId = req.session.userId;
+
+  if (!staffId) return res.status(401).json({ error: 'Nicht authentifiziert.' });
+
+  const {
+    start_time,
+    end_time,
+    sendSms, // <-- NEU: SMS-Flag
+    old_start_time, // <-- NEU: Alte Startzeit
+    old_end_time,   // <-- NEU: Alte Endzeit
+    client_first_name, // <-- NEU: Kundenname
+    client_last_name,
+    client_phone_number // <-- NEU: Telefonnummer für SMS
+  } = req.body;
+
+  if (!start_time || !end_time) {
+    return res.status(400).json({ error: 'Start- und Endzeit sind Pflichtfelder.' });
+  }
+
+  try {
+    const result = await pool.query(`
+      UPDATE appointments
+      SET start_time = $1, end_time = $2
+      WHERE id = $3 AND staff_id = $4
+      RETURNING *;
+    `, [start_time, end_time, appointmentId, staffId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden oder keine Berechtigung.' });
+    }
+
+    // --- SMS-Versand Logik (NEU) ---
+    if (sendSms && client_phone_number) {
+      const oldStart = new Date(old_start_time).toLocaleString('de-CH');
+      const newStart = new Date(start_time).toLocaleString('de-CH');
+      const clientName = `${client_first_name || ''} ${client_last_name || ''}`.trim();
+      const smsMessage = `Hallo ${clientName},\nIhr Termin wurde verschoben von ${oldStart} auf ${newStart}. Bitte bestätigen Sie die Änderung.`;
+
+      // Hier kommt die eigentliche SMS-Versandlogik mit Twilio oder ähnlichem Dienst
+      // Beispiel (Twilio Pseudocode):
+      // const client = require('twilio')(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
+      // await client.messages.create({
+      //   body: smsMessage,
+      //   from: 'YOUR_TWILIO_PHONE_NUMBER',
+      //   to: client_phone_number
+      // });
+      console.log(`SMS-Benachrichtigung an ${client_phone_number} gesendet: ${smsMessage}`);
+    }
+
+    console.log(`✅ Termin ID ${appointmentId} aktualisiert und ggf. SMS gesendet.`);
+    res.status(200).json({ message: 'Termin erfolgreich aktualisiert.', appointment: result.rows[0] });
+
+  } catch (err) {
+    console.error(`❌ Fehler beim Aktualisieren oder SMS-Versand für Termin ID ${appointmentId}:`, err);
+    res.status(500).json({ error: 'Fehler beim Aktualisieren des Termins.' });
+  }
+});
+
 
 app.use((err, req, res, next) => {
   console.error('Unerwarteter Fehler im Fehler-Handler:', err); // Angepasster Log

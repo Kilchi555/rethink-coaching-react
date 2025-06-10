@@ -1,92 +1,128 @@
+/* Grundlegendes Styling für die Login-Seite */
 .login-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh; /* Mindesthöhe des Viewports */
-    background-color: #f0f2f5; /* Heller Hintergrund */
-    font-family: 'Arial', sans-serif; /* Allgemeine Schriftart */
-    padding: 20px;
-    box-sizing: border-box; /* Padding in die Breite/Höhe einbeziehen */
-  }
-  
-  .login-form {
-    background-color: #ffffff;
-    padding: 40px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Sanfter Schatten */
-    width: 100%;
-    max-width: 400px; /* Maximale Breite des Formulars */
-    text-align: center;
-  }
-  
-  .login-form h2 {
-    font-size: 28px;
-    color: #333;
-    margin-bottom: 30px;
-    font-weight: bold;
-  }
-  
-  .form-group {
-    margin-bottom: 20px;
-    text-align: left; /* Textausrichtung für Labels */
-  }
-  
-  .form-group label {
-    display: block; /* Label auf eigener Zeile */
-    margin-bottom: 8px;
-    color: #555;
-    font-size: 14px;
-    font-weight: 600;
-  }
-  
-  .form-group input {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    font-size: 16px;
-    box-sizing: border-box; /* Padding in die Breite einbeziehen */
-  }
-  
-  .form-group input:focus {
-    border-color: #007bff; /* Blauer Rahmen beim Fokus */
-    outline: none; /* Standard-Outline entfernen */
-    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25); /* Leichter Schatten beim Fokus */
-  }
-  
-  .login-button {
-    width: 100%;
-    padding: 12px;
-    background-color: #007bff; /* Blauer Button */
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 18px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s ease; /* Weicher Übergang */
-  }
-  
-  .login-button:hover {
-    background-color: #0056b3; /* Dunklerer Blauton beim Hover */
-  }
-  
-  .error-message {
-    color: #dc3545; /* Rote Farbe für Fehlermeldungen */
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
-    padding: 10px;
-    border-radius: 4px;
-    margin-bottom: 15px;
-    font-size: 14px;
-  }
-  
-  .success-message {
-    color: #28a745; /* Grüne Farbe für Erfolgsmeldungen */
-    background-color: #d4edda;
-    border: 1px solid #c3e6cb;
-    padding: 10px;
-    border-radius: 4px;
-    margin-bottom: 15px;
-    font-size: 14px;
-  }
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #f0f2f5;
+  padding: 20px;
+}
+
+.login-box { /* Dieser Container umgibt jetzt alles in der Mitte */
+  background-color: white;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-box h2 {
+  color: #333;
+  margin-bottom: 25px;
+  font-size: 2em;
+}
+
+/* Styling für das Logo */
+.logo-container {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.rethink-logo {
+  max-width: 150px; /* Oder die gewünschte Größe */
+  height: auto;
+  border-radius: 8px; /* Abgerundete Ecken für das Logo */
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.form-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #555;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px; /* Abgerundete Ecken für Inputs */
+  font-size: 1rem;
+  box-sizing: border-box; /* Padding und Border sind in der Breite enthalten */
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.login-button {
+  width: 100%;
+  padding: 14px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 8px; /* Abgerundete Ecken für den Button */
+  font-size: 1.1em;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
+}
+
+.login-button:hover { /* :not(:disabled) war hier nicht nötig, da Sie kein 'disabled' im JSX haben */
+  background-color: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 123, 255, 0.3);
+}
+
+.login-button:active { /* :not(:disabled) war hier nicht nötig */
+  background-color: #004085;
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.1);
+}
+
+/* Falls Sie den Button doch wieder deaktivieren möchten, können Sie dies hinzufügen */
+.login-button:disabled {
+  background-color: #a0cbed;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #dc3545;
+  margin-bottom: 15px;
+  font-weight: 500;
+}
+
+.success-message { /* Styling für Ihre successMessage */
+  color: #28a745;
+  margin-bottom: 15px;
+  font-weight: 500;
+}
+
+/* Styling für den Registrierungslink */
+.register-link-text {
+  margin-top: 25px;
+  font-size: 0.95em;
+  color: #666;
+}
+
+.register-link {
+  color: #007bff; /* Blaue Farbe, passend zum Button */
+  text-decoration: none; /* Keine Unterstreichung standardmäßig */
+  font-weight: 600;
+  transition: color 0.3s ease, text-decoration 0.3s ease;
+}
+
+.register-link:hover {
+  color: #0056b3; /* Dunkler beim Hover */
+  text-decoration: underline; /* Unterstreichung beim Hover */
+}

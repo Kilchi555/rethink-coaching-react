@@ -1,0 +1,130 @@
+/* src/components/Register.css */
+
+/* Reuses most styles from Login.css for consistency */
+
+.register-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f0f2f5; /* Match Login background */
+    padding: 20px;
+  }
+  
+  .register-box {
+    background-color: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    width: 100%;
+    max-width: 400px; /* Match Login max-width */
+  }
+  
+  .register-box h2 {
+    color: #333;
+    margin-bottom: 25px;
+    font-size: 2em;
+  }
+  
+  /* Logo styling - same as Login.css */
+  .logo-container {
+    margin-bottom: 30px;
+    text-align: center;
+  }
+  
+  .rethink-logo {
+    max-width: 150px;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  }
+  
+  .form-group {
+    margin-bottom: 20px;
+    text-align: left;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #555;
+  }
+  
+  .form-group input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    box-sizing: border-box;
+  }
+  
+  .form-group input:focus {
+    outline: none;
+    border-color: #28a745; /* Green accent for register, or keep blue */
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.25); /* Green accent */
+  }
+  
+  .register-button {
+    width: 100%;
+    padding: 14px;
+    background-color: #28a745; /* Green button for Register */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.2); /* Green shadow */
+  }
+  
+  .register-button:hover:not(:disabled) {
+    background-color: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(40, 167, 69, 0.3);
+  }
+  
+  .register-button:active:not(:disabled) {
+    background-color: #1e7e34;
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.1);
+  }
+  
+  .register-button:disabled {
+    background-color: #8cda9d;
+    cursor: not-allowed;
+  }
+  
+  .error-message {
+    color: #dc3545;
+    margin-bottom: 15px;
+    font-weight: 500;
+  }
+  
+  .success-message {
+    color: #28a745;
+    margin-bottom: 15px;
+    font-weight: 500;
+  }
+  
+  /* Styling for the login link */
+  .login-link-text {
+    margin-top: 25px;
+    font-size: 0.95em;
+    color: #666;
+  }
+  
+  .login-link {
+    color: #007bff; /* Link color can be blue or green, keeping blue for consistency with general app links */
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s ease, text-decoration 0.3s ease;
+  }
+  
+  .login-link:hover {
+    color: #0056b3;
+    text-decoration: underline;
+  }

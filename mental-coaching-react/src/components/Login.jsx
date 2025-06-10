@@ -1,6 +1,6 @@
 // src/components/Login.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // <--- Link hier importieren!
 import { useAuth } from '../context/AuthContext';
 
 import './Login.css';
@@ -10,10 +10,9 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
-  const { login, isLoggedIn, user } = useAuth();
+  const { login, isLoggedIn, user, loading: authLoading } = useAuth(); 
   const navigate = useNavigate();
 
-  // isMounted-Ref ist hier weiterhin sinnvoll, um Async-Updates zu schützen
   const isMounted = useRef(true); 
 
   useEffect(() => {
@@ -23,24 +22,23 @@ function Login() {
   }, []);
 
   useEffect(() => {
-    // Diese Logik bleibt korrekt. Sie wird nur ausgelöst, wenn isLoggedIn und user.role
-    // tatsächlich wahr sind, was nach der initialen Anmeldung oder nach einem erfolgreichen Login geschieht.
     if (isLoggedIn && user?.role) { 
+      console.log('fetchDataForRole wird aufgerufen für Rolle:', user.role); 
       console.log(`🔁 Bereits eingeloggt oder Login erfolgreich → redirect nach /${user.role}`);
       navigate(`/${user.role}`);
+    } else { 
+      console.log('Redirect-useEffect wird NICHT ausgelöst. Status:', { isLoggedIn, authLoading, user });
     }
-  }, [isLoggedIn, user, navigate]);
+  }, [isLoggedIn, user, navigate, authLoading]); 
   
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Diese Zustandslöschungen sind hier in Ordnung, da sie vor dem Fetch passieren
-    // und nicht Teil eines asynchronen Flusses sind, der nach einem Unmount passieren könnte.
-    setError(null); // KEINE isMounted.current Prüfung hier
-    setSuccessMessage(null); // KEINE isMounted.current Prüfung hier
+    setError(null); 
+    setSuccessMessage(null); 
 
     if (!email || !password) {
-      setError('E-Mail und Passwort sind erforderlich.'); // KEINE isMounted.current Prüfung hier
+      setError('E-Mail und Passwort sind erforderlich.'); 
       return;
     }
 
@@ -74,25 +72,20 @@ function Login() {
           phone 
         } = data;
 
-        // Login-Funktion im AuthContext aufrufen (enthält kein await checkUser mehr)
         login(userId, userEmail, role, first_name, last_name, street, street_nr, zip, city, phone); 
         
-        // ZUSTANDS-UPDATE MIT isMounted.current PRÜFEN - HIER IST ES SINNVOLL!
-        // da dieser Teil nach einem asynchronen Aufruf geschieht.
         if (isMounted.current) {
           setSuccessMessage(data.message || 'Login erfolgreich!'); 
         }
         
       } else {
         console.error('❌ Login fehlgeschlagen:', data.error);
-        // ZUSTANDS-UPDATE MIT isMounted.current PRÜFEN - HIER IST ES SINNVOLL!
         if (isMounted.current) {
           setError(data.error || 'Login fehlgeschlagen. Bitte versuche es erneut.');
         }
       }
     } catch (err) {
       console.error('🚨 Netzwerkfehler beim Login:', err);
-      // ZUSTANDS-UPDATE MIT isMounted.current PRÜFEN - HIER IST ES SINNVOLL!
       if (isMounted.current) {
         setError('Verbindungsfehler. Der Server ist möglicherweise nicht erreichbar.');
       }
@@ -101,41 +94,60 @@ function Login() {
 
   return (
     <div className="login-container">
-      <form className="login-form" onSubmit={handleSubmit}>
+      {/* login-box als Wrapper wieder eingeführt, um Ihr CSS zu nutzen */}
+      <div className="login-box">
+        {/* NEU: Rethink Logo */}
+        <div className="logo-container">
+          <img
+            src="mental-coaching-react/dist/images/ReThinkCoaching Logo.webp" // Platzhalter-Logo
+            alt="Rethink Logo"
+            className="rethink-logo"
+            onError={(e) => { e.target.onerror = null; e.target.src = "mental-coaching-react/dist/images/ReThinkCoaching Logo.webp"; }}
+          />
+        </div>
+
         <h2>Anmelden</h2>
         {error && <p className="error-message">{error}</p>}
         {successMessage && !error && <p className="success-message">{successMessage}</p>}
 
-        <div className="form-group">
-          <label htmlFor="email">E-Mail:</label>
-          <input
-            type="email"
-            id="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value); // <-- KEINE isMounted.current Prüfung hier!
-            }}
-            required
-            aria-label="E-Mail-Adresse"
-          />
-        </div>
+        {/* Die Form war vorher direkt im login-container, jetzt im login-box */}
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="email">E-Mail:</label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value); 
+              }}
+              required
+              aria-label="E-Mail-Adresse"
+            />
+          </div>
 
-        <div className="form-group">
-          <label htmlFor="password">Passwort:</label>
-          <input
-            type="password"
-            id="password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value); // <-- KEINE isMounted.current Prüfung hier!
-            }}
-            required
-            aria-label="Passwort"
-          />
-        </div>
+          <div className="form-group">
+            <label htmlFor="password">Passwort:</label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value); 
+              }}
+              required
+              aria-label="Passwort"
+            />
+          </div>
 
-        <button type="submit" className="login-button">Anmelden</button>
-      </form>
+          <button type="submit" className="login-button">Anmelden</button>
+        </form>
+
+        {/* NEU: Link zur Registrierungsseite */}
+        <p className="register-link-text">
+          Noch kein Konto? <Link to="/register" className="register-link">Jetzt registrieren</Link>
+        </p>
+      </div> {/* Ende login-box */}
     </div>
   );
 }

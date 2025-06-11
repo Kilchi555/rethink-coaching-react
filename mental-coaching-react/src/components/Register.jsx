@@ -80,7 +80,6 @@ function Register() {
             src="mental-coaching-react/dist/images/ReThinkCoaching Logo.webp" // Platzhalter-Logo
             alt="Rethink Logo"
             className="rethink-logo"
-            onError={(e) => { e.target.onerror = null; e.target.src = "mental-coaching-react/dist/images/ReThinkCoaching Logo.webp"; }}
           />
         </div>
 

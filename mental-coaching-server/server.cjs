@@ -365,11 +365,11 @@ app.get('/api/client-notes/:appointmentId', async (req, res) => {
           [appointmentId]
       );
       const notes = notesResult.rows;
-      console.log('Klienten-Notizen:', notes);
+      console.log('Kunden-Notizen:', notes);
       return res.status(200).json(notes);
   } catch (error) {
-      console.error('Fehler beim Abrufen der Klienten-Notizen:', error);
-      return res.status(500).json({ error: 'Fehler beim Abrufen der Klienten-Notizen.' });
+      console.error('Fehler beim Abrufen der Kunden-Notizen:', error);
+      return res.status(500).json({ error: 'Fehler beim Abrufen der Kunden-Notizen.' });
   }
 });
 

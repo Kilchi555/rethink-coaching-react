@@ -62,14 +62,8 @@ function App() {
           } />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          
-          {/* ALT: Diese Route ist NICHT mehr notwendig und kann entfernt werden,
-                  da SwitchDashboard nicht mehr existiert und die Rolle direkt im AuthContext geprüft wird. */}
-          {/* <Route path="/dashboard" element={<SwitchDashboard />} /> */} 
-
           <Route path="/unauthorized" element={<Unauthorized />} />
           <Route path="/role-error" element={<RoleError />} /> {/* Wenn diese Route noch benötigt wird */}
-
           {/* NEU: Alle rollenbasierten Dashboard-Routen verwenden nun das EINE zentrale Dashboard */}
           <Route
             path="/client"

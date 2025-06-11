@@ -439,6 +439,18 @@ app.get('/api/staff-user-notes', async (req, res) => {
 app.post('/api/update-note', async (req, res) => {
   console.log('>>> /api/update-note wurde aufgerufen!');
   const { appointmentId, note, type } = req.body;
+  // 👇 Notizinhalt prüfen (leere <br>, &nbsp;, nur Leerzeichen)
+        const cleanedNote = (note || '')
+        .replace(/<br\s*\/?>/gi, '')
+        .replace(/&nbsp;/gi, '')
+        .replace(/\s+/g, '')
+        .trim();
+
+        if (!cleanedNote) {
+        console.log('Fehler: Notizinhalt ist leer oder nutzlos.');
+        return res.status(400).json({ error: 'Die Notiz darf nicht leer sein.' });
+        }
+
   const userId = req.session.userId; // Annahme: userId ist in der Session verfügbar
 
   // Fügen Sie diesen Log hinzu, um die empfangenen Daten zu überprüfen

@@ -153,7 +153,7 @@
     background: transparent;
     padding: 0.5rem;
     border-radius: 6px;
-    font-size: clamp(0.5rem, 0.7vw, 0.9rem);
+    font-size: clamp(0.4rem, 0.6vw, 0.8rem);
   }
 
   .info-field:hover {
@@ -942,7 +942,7 @@
 /* ============================
    Toggle Notes Button Style
    ============================ */
-   .toggle-notes-button {
+   .note-action-button {
     display: inline-block;
     padding: 0.5rem 1rem;
     margin-top: 0.5rem;
@@ -956,12 +956,12 @@
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
   }
   
-  .toggle-notes-button:hover {
+  .note-action-button:hover {
     background-color: #415162;       /* Etwas dunkler beim Hover */
     transform: scale(1.03);          /* Leichtes Aufpoppen */
   }
   
-  .toggle-notes-button:active {
+  .note-action-button:active {
     transform: scale(0.98);          /* Klickanimation */
   }
 
@@ -1123,7 +1123,8 @@
 }
 
 /* Styling für die einzelnen Monats-Statistik-Elemente */
-.staff-stats-container .stats-text .month-stat {
+ .month-stat {
+  font-size: clamp(0.8rem, 1vw, 1.5rem); /* skaliert sanft von 0.85rem bis max 1rem */
   white-space: nowrap; /* Verhindert, dass der Text innerhalb einer Monatsstatistik umbricht */
 }
 
@@ -1178,7 +1179,7 @@
   padding: 12px 25px; /* Mehr Innenabstand für eine größere Klickfläche */
   border: none; /* Keine Umrandung */
   border-radius: 6px; /* Leicht abgerundete Ecken */
-  font-size: clamp(0.5rem, 0.7vw, 0.9rem); /* skaliert sanft von 0.85rem bis max 1rem */
+  font-size: clamp(0.6rem, 0.8vw, 1rem); /* skaliert sanft von 0.85rem bis max 1rem */
   font-weight: 500; /* Etwas fettere Schrift */
   cursor: pointer; /* Zeigt an, dass es klickbar ist */
   transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease; /* Sanfte Übergänge für Animationen */
@@ -1204,6 +1205,21 @@
 .view-all-months-btn:focus {
   outline: none; /* Standard-Fokus-Rahmen entfernen */
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.5); /* Blauer Fokus-Ring */
+}
+
+.btn {
+  /* Grundlegende Anpassungen */
+  background-color: #007bff; /* Ein kräftiges Blau (passt oft gut) */
+  color: white; /* Weiße Schrift für guten Kontrast */
+  padding: 12px 25px; /* Mehr Innenabstand für eine größere Klickfläche */
+  border: none; /* Keine Umrandung */
+  border-radius: 6px; /* Leicht abgerundete Ecken */
+  font-size: clamp(0.6rem, 0.8vw, 1rem); /* skaliert sanft von 0.85rem bis max 1rem */
+  font-weight: 500; /* Etwas fettere Schrift */
+  cursor: pointer; /* Zeigt an, dass es klickbar ist */
+  transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease; /* Sanfte Übergänge für Animationen */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Leichter Schatten für Tiefe */
+  letter-spacing: 0.5px; /* Etwas mehr Buchstabenabstand */
 }
 
 /* Container für die Liste der Kundenkarten (ersetzt die Tabelle) */

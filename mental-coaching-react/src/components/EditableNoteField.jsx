@@ -50,8 +50,11 @@ const EditableNoteField = React.memo(({
   }, [editorRef]);
 
   const handleInput = (e) => {
-    onContentChange(e.currentTarget.innerHTML);
+    const raw = e.currentTarget.innerHTML;
+    const cleaned = raw === '<br>' ? '' : raw;
+    onContentChange(cleaned);
   };
+  
 
   // WICHTIG: handleBlur sollte das Speichern nur auslösen,
   // wenn der Benutzer den Fokus verliert und isEditing aktiv ist.
@@ -82,7 +85,6 @@ const EditableNoteField = React.memo(({
           : undefined
       }
       onInput={handleInput}
-      onBlur={handleBlur}
     />
   );
 });

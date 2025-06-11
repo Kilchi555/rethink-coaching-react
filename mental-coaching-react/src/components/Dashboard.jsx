@@ -770,11 +770,11 @@ const onEventClick = useCallback((info) => {
         <div className="appointment-info">
           <div className="info-field">
             <strong>
-              {appointment.title || appointment.thema || 'Termin'}
+              <p>{appointment.title || appointment.thema || 'Termin'}</p>
             </strong>
           </div>
           <div className="info-field">
-            <p>🗓️<strong>Datum | Zeit:</strong> {formattedDate} | {formattedTime} Uhr </p>
+            <p>🗓️ <strong>Datum | Zeit:</strong> {formattedDate} | {formattedTime} Uhr </p>
           </div>
           <div className="info-field">
             <p>🕒 <strong>Dauer:</strong> {durationMinutes} Minuten</p>
@@ -810,11 +810,13 @@ const onEventClick = useCallback((info) => {
                         {user?.role === 'client' ? (
                           <>
                            <EditableNoteField
-                              key={`client-note-${appointment.id}-${isEditingClientNote ? 'edit' : 'view'}`}
-                              id={`client-note-editor-${appointment?.id}`}
-                              initialContent={appointment.client_note || ''}
-                              isEditing={isEditingClientNote}
-                              content={tempClientNoteContent}
+                                initialContent={
+                                  isEditingClientNote
+                                    ? tempClientNoteContent
+                                    : (calendarAppointments.find(a => a.id === appointment.id)?.client_note || '')
+                                }
+                                isEditing={isEditingClientNote}
+                                content={tempClientNoteContent}
                               onContentChange={setTempClientNoteContent}
                               onSave={(contentToSave) => saveNote(appointment.id, 'client', contentToSave)} // saveNote muss return true/false
                               onNoteSaved={() => setTempClientNoteContent('')} // <--- NEU: Leere temporären Inhalt erst hier!
@@ -868,9 +870,11 @@ const onEventClick = useCallback((info) => {
                         {(user?.role === 'staff' || user?.role === 'admin') ? (
                           <>
                             <EditableNoteField
-                                key={`staff-note-${appointment.id}-${isEditingStaffNote ? 'edit' : 'view'}`}
-                                id={`staff-note-editor-${appointment.id}`}
-                                initialContent={appointment.staff_note || ''}
+                                initialContent={
+                                  isEditingStaffNote
+                                    ? tempStaffNoteContent
+                                    : (calendarAppointments.find(a => a.id === appointment.id)?.staff_note || '')
+                                }
                                 isEditing={isEditingStaffNote}
                                 content={tempStaffNoteContent}
                                 onContentChange={setTempStaffNoteContent}
@@ -922,6 +926,19 @@ const onEventClick = useCallback((info) => {
       const saveNote = useCallback(async (appointmentId, type, noteContentToSave) => {
         console.log('--- START saveNote ---');
         console.log('1. noteContentToSave (Inhalt aus Editor):', noteContentToSave);
+        // ✨ LEER-VALIDIERUNG ✨
+        const cleanedNote = (noteContentToSave || '')
+        .replace(/<br\s*\/?>/gi, '')
+        .replace(/&nbsp;/gi, '')
+        .replace(/\s+/g, '')
+        .trim();
+      
+      if (!cleanedNote) {
+        alert('Die Notiz darf nicht leer sein.');
+        return false;
+      }
+      
+
         console.log('2. Speichern für Termin-ID:', appointmentId, 'Typ:', type);
     
         if (!user) {
@@ -976,8 +993,23 @@ const onEventClick = useCallback((info) => {
     
         console.log('7. updatedAppointments (nach Map - Optimistic):', updatedAppointments);
     
-        setCalendarAppointments(updatedAppointments);
-        console.log('8. Nach setCalendarAppointments - calendarAppointments (optimistisch aktualisiert):', updatedAppointments);
+        const updatedCalendarAppointments = calendarAppointments.map(appt => {
+          if (appt.id === appointmentId) {
+            return {
+              ...appt,
+              [type === 'client' ? 'client_note' : 'staff_note']: noteContentToSave,
+            };
+          }
+          return appt;
+        });
+        setCalendarAppointments(updatedCalendarAppointments);
+        
+        // 👇 GANZ WICHTIG: aktualisiere auch den EINZELNEN appointment-Zustand
+        const updated = updatedCalendarAppointments.find(a => a.id === appointmentId);
+        if (updated) {
+          setappointment(updated); // <- Jetzt ist auch appointment.staff_note wirklich aktuell
+        }
+                console.log('8. Nach setCalendarAppointments - calendarAppointments (optimistisch aktualisiert):', updatedAppointments);
     
         const newlyUpdatedAppt = updatedAppointments.find(appt => appt.id === appointmentId);
         if (newlyUpdatedAppt) {

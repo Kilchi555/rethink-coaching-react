@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom'; // <--- Link hier importieren!
 import { useAuth } from '../context/AuthContext';
-
 import './Login.css';
 
 function Login() {
@@ -98,11 +97,9 @@ function Login() {
       <div className="login-box">
         {/* NEU: Rethink Logo */}
         <div className="logo-container">
-          <img
-            src="mental-coaching-react/dist/images/ReThinkCoaching Logo.webp" // Platzhalter-Logo
+        <img src="/images/ReThink-Coaching-Logo.webp"
             alt="Rethink Logo"
             className="rethink-logo"
-            onError={(e) => { e.target.onerror = null; e.target.src = "mental-coaching-react/dist/images/ReThinkCoaching Logo.webp"; }}
           />
         </div>
 

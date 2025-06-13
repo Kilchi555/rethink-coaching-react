@@ -75,7 +75,7 @@ const CalendarComponent = ({
           slotMaxTime="22:00:00"
           allDaySlot={false}
           eventContent={(arg) => {
-            const { first_name, last_name, thema, location } = arg.event.extendedProps;
+            const { first_name, last_name, title, location } = arg.event.extendedProps;
             const fullName = [first_name, last_name].filter(Boolean).join(' ');
             return (
               <div className="fc-event-custom">

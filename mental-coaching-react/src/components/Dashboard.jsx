@@ -39,8 +39,6 @@ const Dashboard = () => {
   const staffNoteEditorRef = useRef({}); 
   const [tempClientNoteContent, setTempClientNoteContent] = useState('');
   const [tempStaffNoteContent, setTempStaffNoteContent] = useState('');
-  const isEditingClientNote = appointment && editingNoteIds[appointment.id] === 'client';
-  const isEditingStaffNote = appointment && editingNoteIds[appointment.id] === 'staff';
 
   const [showNoteSavedMessage, setShowNoteSavedMessage] = useState(false);
   const noteSavedTimeoutRef = useRef(null);
@@ -75,11 +73,6 @@ const Dashboard = () => {
   const [pendingEventDrop, setPendingEventDrop] = useState(null);
   const [sendSmsNotification, setSendSmsNotification] = useState(true);
   const [originalDroppedEvent, setOriginalDroppedEvent] = useState(null);
-
-  console.log('RENDER: appointment?.id', appointment?.id);
-  console.log('RENDER: editingNoteIds State:', editingNoteIds);
-  console.log('RENDER: isEditingClientNote:', isEditingClientNote);
-  console.log('RENDER: isEditingStaffNote:', isEditingStaffNote);
 
   const handleLogout = useCallback(async () => {
     console.log('User initiated logout.');
@@ -317,7 +310,7 @@ const Dashboard = () => {
 
     // Erstelle ein "kopiertes" Event-Objekt aus dem Pending-Event
     const duplicatedData = {
-      thema: pendingEventDrop.extendedProps.thema || pendingEventDrop.title,
+      title: pendingEventDrop.extendedProps.title || pendingEventDrop.title,
       location: pendingEventDrop.extendedProps.location,
       start_time: pendingEventDrop.start.toISOString(), // Verwende die NEUE Position vom Drag & Drop
       end_time: pendingEventDrop.end.toISOString(),     // Verwende die NEUE Position vom Drag & Drop
@@ -458,7 +451,7 @@ const Dashboard = () => {
   setCopiedAppointment({
     // WICHTIG: Hier die Daten aufbereiten, die später im AppointmentModal vorbesetzt werden sollen.
     // initialEventData wird dies nutzen.
-    thema: appointmentToCopy.thema || appointmentToCopy.title,
+    title: appointmentToCopy.title || appointmentToCopy.title,
     location: appointmentToCopy.location,
     durationMinutes: durationMinutes, // Die Dauer muss hier übergeben werden
     user_id: appointmentToCopy.user_id, // Die Kunden-ID des Originaltermins
@@ -484,7 +477,7 @@ const onEventClick = useCallback((info) => {
 
       setInitialEventDataForModal({
         id: eventToEdit.id,
-        thema: eventToEdit.thema || eventToEdit.title,
+        title: eventToEdit.title || eventToEdit.title,
         location: eventToEdit.location,
         start_time: new Date(eventToEdit.start_time),
         end_time: new Date(eventToEdit.end_time),
@@ -499,7 +492,7 @@ const onEventClick = useCallback((info) => {
 
     const fullAppointmentData = { // Sammle alle relevanten Daten für die Kopierfunktion
       id: parseInt(event.id),
-      thema: extendedProps.thema || title,
+      title: extendedProps.title || title,
       location: extendedProps.location,
       start_time: start,
       end_time: end,
@@ -595,7 +588,7 @@ const onEventClick = useCallback((info) => {
       console.log('Kopierter Termin gefunden, setze Initialdaten für Modal:', copiedAppointment);
       // setInitialEventDataForModal wird jetzt die kopierten Daten + neue Zeit erhalten
       setInitialEventDataForModal({
-        ...copiedAppointment, // Kopierte thema, location, durationMinutes, user_id
+        ...copiedAppointment, // Kopierte title, location, durationMinutes, user_id
         start_time: new Date(info.startStr), // Neue Startzeit vom Klick
         // end_time wird im AppointmentModal aus start_time + durationMinutes berechnet
       });
@@ -638,7 +631,7 @@ const onEventClick = useCallback((info) => {
       const method = isEditing ? 'PUT' : 'POST';
 
       const payload = {
-        thema: appointmentDataFromModal.thema,
+        title: appointmentDataFromModal.title,
         location: appointmentDataFromModal.location,
         start_time: appointmentDataFromModal.start_time,
         end_time: appointmentDataFromModal.end_time,
@@ -661,8 +654,25 @@ const onEventClick = useCallback((info) => {
 
       alert(`✅ Termin erfolgreich ${isEditing ? 'aktualisiert' : 'gebucht'}.`);
 
+      // 🔄 Optimistisches Update im Frontend durchführen
+      const updatedAppointments = calendarAppointments.map(appt => {
+        if (appt.id === initialEventDataForModal.id) {
+          return {
+            ...appt,
+            title: appointmentDataFromModal.title,
+            location: appointmentDataFromModal.location,
+            start_time: appointmentDataFromModal.start_time,
+            end_time: appointmentDataFromModal.end_time
+          };
+        }
+        return appt;
+      });
+      setCalendarAppointments(updatedAppointments);
+      console.log('🔄 Terminliste aktualisiert (Frontend optimistisch):', updatedAppointments);
+
+
       // "Zuletzt verwendet"-States aktualisieren, basierend auf den Daten aus dem Modal
-      setLastUsedTitle(appointmentDataFromModal.thema);
+      setLastUsedTitle(appointmentDataFromModal.title);
       setLastUsedLocation(appointmentDataFromModal.location);
       // Die Dauer wird im Modal berechnet und nicht direkt als Prop übergeben,
       // aber wir können sie aus start_time und end_time ableiten.
@@ -685,13 +695,13 @@ const onEventClick = useCallback((info) => {
   // Erstellen der Event-Objekte für FullCalendar
   const events = calendarAppointments.map((a) => ({
     id: a.id,
-    title: a.title || a.thema || 'Termin',
+    title: a.title || 'Termin',
     start: a.start_time,
     end: a.end_time,
     extendedProps: {
       first_name: a.client_first_name,
       last_name: a.client_last_name,
-      thema: a.thema || a.title,
+      title: a.title,
       location: a.location,
       user_id: a.user_id,
       client_email: a.client_email,
@@ -708,30 +718,33 @@ const onEventClick = useCallback((info) => {
     const handleEditNoteClick = useCallback((appointmentId, type) => {
       console.log('--- handleEditNoteClick aufgerufen ---');
       console.log('  appointmentId:', appointmentId, 'type:', type);
-      console.log('  appointment beim Klicken:', appointment);
-  
+    
       setEditingNoteIds(prev => {
         const newState = { ...prev, [appointmentId]: type };
         console.log('  Neuer editingNoteIds Zustand nach setEditingNoteIds:', newState);
         return newState;
       });
-  
-      // Initialisiere den temporären Zustand, wenn Bearbeitung beginnt
-      const currentNote = type === 'client' ? appointment?.client_note : appointment?.staff_note;
+    
+      const currentAppointment = calendarAppointments.find(appt => appt.id === appointmentId);
+    
+      const currentNote = type === 'client' ? currentAppointment?.client_note : currentAppointment?.staff_note;
+    
       if (type === 'client') {
         setTempClientNoteContent(currentNote || '');
-      } else if (type === 'staff') { // Wichtig: else if für staff
+      } else if (type === 'staff') {
         setTempStaffNoteContent(currentNote || '');
       }
-    }, [setEditingNoteIds, appointment, setTempClientNoteContent, setTempStaffNoteContent]);
+    }, [calendarAppointments, setEditingNoteIds, setTempClientNoteContent, setTempStaffNoteContent]);
+    
 
   const renderAppointmentItem = (appointment, type) => {
     const isExpanded = expandedAppointmentIds[appointment.id] === true;
     const startDate = new Date(appointment.start_time);
     const durationMinutes = Math.floor((new Date(appointment.end_time) - startDate) / 60000);
+    const isEditingClientNote = editingNoteIds[appointment.id] === 'client';
+    const isEditingStaffNote = editingNoteIds[appointment.id] === 'staff';
     const isAnyNoteCurrentlyEditing = isEditingClientNote || isEditingStaffNote;
     const noteTypeInEdit = isEditingClientNote ? 'client' : (isEditingStaffNote ? 'staff' : null);
-
 
     const formattedDate = startDate.toLocaleDateString('de-DE', {
       weekday: 'long',
@@ -770,7 +783,7 @@ const onEventClick = useCallback((info) => {
         <div className="appointment-info">
           <div className="info-field">
             <strong>
-              <p>{appointment.title || appointment.thema || 'Termin'}</p>
+              <p>{appointment.title || 'Termin'}</p>
             </strong>
           </div>
           <div className="info-field">
@@ -1115,7 +1128,7 @@ const onEventClick = useCallback((info) => {
       <header className="dashboard-header">
         <div className="header-left">
           <a href="/">
-            <img src="/images/ReThinkCoaching Logo.webp" alt="Logo" className="header-logo" />
+            <img src="/images/ReThink-Coaching-Logo.webp" alt="Logo" className="header-logo" />
           </a>
         </div>
         <div className="header-center">
@@ -1364,7 +1377,7 @@ const onEventClick = useCallback((info) => {
               className="open-calendar-button"
               onClick={() => setIsCalendarModalOpen(true)}
             >
-              Termin reservieren
+              Kalender öffnen
             </button>
 
             <div id="client-appointments">
@@ -1434,7 +1447,7 @@ const onEventClick = useCallback((info) => {
               <p><strong>Datum:</strong> {appointment.dateFormatted}</p>
               <p><strong>Zeit:</strong> {appointment.timeRange}</p>
               <p><strong>Ort:</strong> {appointment.location}</p>
-              <p><strong>Thema:</strong> {appointment.thema}</p>
+              <p><strong>Thema:</strong> {appointment.title}</p>
               <div className="button-row">
                 <button onClick={() => setIsAppointmentDetailsModalOpen(false)}>Schliessen</button>
               </div>
@@ -1483,7 +1496,7 @@ const onEventClick = useCallback((info) => {
                 checked={sendSmsNotification}
                 onChange={(e) => setSendSmsNotification(e.target.checked)}
               />
-              <label htmlFor="sendSms">Kunden per SMS benachrichtigen</label>
+              <label htmlFor="sendSms"> Kunden per SMS benachrichtigen</label>
             </div>
             <div className="button-row">
               <button onClick={duplicateEventDrop} className="duplicate-button">Duplizieren</button>

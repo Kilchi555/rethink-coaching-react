@@ -62,6 +62,8 @@ console.log('*** buildPath definiert als:', buildPath, '***');
 console.log('*** Vor dem Servieren statischer Dateien ***');
 app.use(express.static(buildPath));
 console.log('*** Nach dem Servieren statischer Dateien ***');
+app.use('/images', express.static(path.join(__dirname, 'public/images')));
+
 
 // // **API-Endpunkte**
 // // Handler fur die Registration
@@ -248,8 +250,8 @@ app.get('/api/past-appointments', async (req, res) => {
       start: row.start_time,
       end: row.end_time,
       extendedProps: {
-        thema: row.title,
-        ort: row.location,
+        title: row.title,
+        location: row.location,      // ✅ Besser: konsistente Namensgebung
         kunde: {
           email: row.client_email,
           name: `${row.client_first_name} ${row.client_last_name}`
@@ -263,13 +265,13 @@ app.get('/api/past-appointments', async (req, res) => {
           staff: row.staff_note
         }
       },
-      isPast: true
+      isPast: new Date(row.end_time) < new Date()
     }));
-
-    console.log('🔥 result.rows Dump:');
-    console.log(JSON.stringify(result.rows, null, 2));
-
-    return res.status(200).json({ calendarEvents: calendarEvents, listData: rawAppointments });
+    
+    return res.status(200).json({
+      calendarEvents: calendarEvents,
+      listData: rawAppointments
+    });
 
   } catch (error) {
     console.error('Fehler beim Abrufen vergangener Termine:', error);
@@ -324,8 +326,8 @@ app.get('/api/future-appointments', async (req, res) => {
       start: row.start_time,
       end: row.end_time,
       extendedProps: {
-        thema: row.title,
-        ort: row.location,
+        title: row.title,
+        location: row.location,
         kunde: {
           email: row.client_email,
           name: `${row.client_first_name} ${row.client_last_name}`
@@ -341,6 +343,7 @@ app.get('/api/future-appointments', async (req, res) => {
       },
       isPast: new Date(row.end_time) < new Date()
     }));
+    
 
     return res.status(200).json({ calendarEvents: calendarEvents, listData: rawAppointments });
 
@@ -618,12 +621,11 @@ app.post('/api/book-appointments', async (req, res) => {
     start_time,
     end_time,
     title,
-    thema,
     location,
     user_id
   } = req.body;
 
-  if (!start_time || !end_time || !thema || !location) {
+  if (!start_time || !end_time || !title || !location) {
     return res.status(400).json({ error: 'Fehlende Pflichtfelder.' });
   }
 
@@ -643,9 +645,9 @@ app.post('/api/book-appointments', async (req, res) => {
     await pool.query(`
       INSERT INTO appointments (user_id, staff_id, start_time, end_time, title, location)
       VALUES ($1, $2, $3, $4, $5, $6)
-    `, [clientId, staffId, start_time, end_time, thema, location]);
+    `, [clientId, staffId, start_time, end_time, title, location]);
 
-    console.log(`📅 Neuer Termin: [${thema}] ${start_time} - ${end_time} @ ${location} (Kunde: ${clientId}, Staff: ${staffId})`);
+    console.log(`📅 Neuer Termin: [${title}] ${start_time} - ${end_time} @ ${location} (Kunde: ${clientId}, Staff: ${staffId})`);
 
     res.status(200).json({ message: 'Termin erfolgreich gebucht.' });
 
@@ -664,19 +666,31 @@ app.put('/api/book-appointments/:id', async (req, res) => { // <-- HIER IST DIE 
   }
 
   // Die Daten, die du vom Frontend im Body für das Update erwartest
-  const { start_time, end_time, sendSms, old_start_time, old_end_time, client_first_name, client_last_name, client_phone_number } = req.body;
-
+  const {
+    start_time,
+    end_time,
+    location,
+    title,
+    sendSms,
+    old_start_time,
+    old_end_time,
+    client_first_name,
+    client_last_name,
+    client_phone_number
+  } = req.body;
+  
   if (!start_time || !end_time) {
     return res.status(400).json({ error: 'Start- und Endzeit sind Pflichtfelder für das Update.' });
   }
 
   try {
     const result = await pool.query(`
-      UPDATE appointments
-      SET start_time = $1, end_time = $2
-      WHERE id = $3 AND staff_id = $4
-      RETURNING *;
-    `, [start_time, end_time, appointmentId, staffId]);
+  UPDATE appointments
+  SET start_time = $1, end_time = $2, location = $3, title = $4
+  WHERE id = $5 AND staff_id = $6
+  RETURNING *;
+`, [start_time, end_time, location, title, appointmentId, staffId]);
+
 
     if (result.rowCount === 0) {
       // Wenn keine Zeile aktualisiert wurde, bedeutet das, dass der Termin nicht gefunden wurde
@@ -763,6 +777,8 @@ app.put('/api/appointments/:id', async (req, res) => { // Oder '/api/book-appoin
   const {
     start_time,
     end_time,
+    location,
+    title,
     sendSms, // <-- NEU: SMS-Flag
     old_start_time, // <-- NEU: Alte Startzeit
     old_end_time,   // <-- NEU: Alte Endzeit
@@ -777,11 +793,12 @@ app.put('/api/appointments/:id', async (req, res) => { // Oder '/api/book-appoin
 
   try {
     const result = await pool.query(`
-      UPDATE appointments
-      SET start_time = $1, end_time = $2
-      WHERE id = $3 AND staff_id = $4
-      RETURNING *;
-    `, [start_time, end_time, appointmentId, staffId]);
+    UPDATE appointments
+    SET start_time = $1, end_time = $2, location = $3, title = $4
+    WHERE id = $5 AND staff_id = $6
+    RETURNING *;
+  `, [start_time, end_time, location, title, appointmentId, staffId]);
+  
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Termin nicht gefunden oder keine Berechtigung.' });

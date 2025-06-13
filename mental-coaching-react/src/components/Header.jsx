@@ -50,7 +50,7 @@ const Header = () => {
     <header className="header">
       <div className="logo">
         <Link to="/" onClick={closeMenu}> {/* Auch Logo-Klick kann Menü schließen */}
-          <img src="/images/ReThinkCoaching Logo.webp" alt="Rethink Coaching Logo" />
+          <img src="/images/ReThink-Coaching-Logo.webp" alt="Rethink Coaching Logo" />
         </Link>
       </div>
 

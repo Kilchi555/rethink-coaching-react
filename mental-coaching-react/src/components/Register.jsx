@@ -76,8 +76,7 @@ function Register() {
       <div className="register-box">
         {/* Logo, passend zur Login-Seite */}
         <div className="logo-container">
-          <img
-            src="mental-coaching-react/dist/images/ReThinkCoaching Logo.webp" // Platzhalter-Logo
+          <img src="/images/ReThink-Coaching-Logo.webp"
             alt="Rethink Logo"
             className="rethink-logo"
           />

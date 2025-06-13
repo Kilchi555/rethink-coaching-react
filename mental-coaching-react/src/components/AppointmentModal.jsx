@@ -32,7 +32,7 @@ const AppointmentModal = ({
 
       if (initialEventData) {
         // BEARBEITUNGSMODUS ODER KOPIERTER TERMIN: Werte aus initialEventData laden
-        setCurrentEventTitle(initialEventData.thema || '');
+        setCurrentEventTitle(initialEventData.title || '');
         setCurrentEventLocation(initialEventData.location || '');
 
         // Die Startzeit kommt entweder vom initialEventData (für Bearbeitung eines bestehenden Termins)
@@ -139,7 +139,7 @@ const AppointmentModal = ({
 
     onSave({
       id: initialEventData?.id, // ID nur übergeben, wenn es ein bestehender Termin ist (Bearbeitungsmodus)
-      thema: currentEventTitle,
+      title: currentEventTitle,
       location: currentEventLocation,
       start_time: currentEventDateTime.toISOString(),
       // Endzeit basierend auf Startzeit und Dauer berechnen

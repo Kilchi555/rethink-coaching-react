@@ -23,7 +23,7 @@ function AboutSection() {
           </div>
 
           <div className="about-image">
-            <img src="/images/Team Foto.webp" alt="Mental Coach Team" loading="lazy"/>
+            <img src="/images/Team-Foto.webp" alt="Mental Coach Team" loading="lazy"/>
           </div>
         </div>
       </div>

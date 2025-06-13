@@ -42,7 +42,7 @@ const CalendarComponent = ({
           height="auto"
           stickyHeaderDates={true}
           headerToolbar={{ left: '', center: 'prev,next today', right: '' }}
-          selectable={user?.role === 'staff' || user?.role === 'admin'} // Nur Staff/Admin können Bereiche auswählen
+          selectable={user?.role === 'staff' || user?.role === 'admin' || user?.role === 'client'}
           editable={user?.role === 'staff' || user?.role === 'admin'}   // Nur Staff/Admin können Events verschieben
           selectMirror={true} // Visuelles Feedback beim Auswählen
 
@@ -75,11 +75,10 @@ const CalendarComponent = ({
           slotMaxTime="22:00:00"
           allDaySlot={false}
           eventContent={(arg) => {
-            const { first_name, last_name, title, location } = arg.event.extendedProps;
-            const fullName = [first_name, last_name].filter(Boolean).join(' ');
+            const { title, location } = arg.event.extendedProps;
             return (
               <div className="fc-event-custom">
-                <div className="event-name">{fullName || 'Termin'}</div>
+                <div className="event-name">{title || 'Termin'}</div>
                 {location && <div className="event-subline">📍 {location}</div>}
               </div>
             );

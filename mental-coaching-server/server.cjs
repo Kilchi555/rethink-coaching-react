@@ -233,11 +233,22 @@ app.get('/api/past-appointments', async (req, res) => {
       FROM appointments a
       LEFT JOIN users u ON u.id = a.user_id
       LEFT JOIN users s ON s.id = a.staff_id
-      LEFT JOIN client_notes cn ON cn.appointment_id = a.id
-      LEFT JOIN staff_notes sn ON sn.appointment_id = a.id
+      LEFT JOIN LATERAL (
+        SELECT note FROM client_notes
+        WHERE appointment_id = a.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) cn ON true
+      
+      LEFT JOIN LATERAL (
+        SELECT note FROM staff_notes
+        WHERE appointment_id = a.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) sn ON true      
       WHERE a.start_time < NOW()
         AND (a.user_id = $1 OR a.staff_id = $1)
-      ORDER BY a.start_time ASC
+      ORDER BY a.start_time DESC
     `, [req.session.userId]);
     console.log('Abgerufene Termine mit Startzeiten:', result.rows.map(row => row.start_time));
     console.log('Rohdaten aus DB (past-appointments):', JSON.stringify(result.rows, null, 2));

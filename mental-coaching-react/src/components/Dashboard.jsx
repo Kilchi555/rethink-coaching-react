@@ -490,17 +490,25 @@ const onEventClick = useCallback((info) => {
     const event = info.event;
     const { title, start, end, extendedProps } = event;
 
-    const fullAppointmentData = { // Sammle alle relevanten Daten für die Kopierfunktion
+    const fullAppointmentData = {
       id: parseInt(event.id),
       title: extendedProps.title || title,
       location: extendedProps.location,
       start_time: start,
       end_time: end,
-      client_first_name: extendedProps.first_name,
-      client_last_name: extendedProps.last_name,
+      client_first_name: extendedProps.client_first_name,
+      client_last_name: extendedProps.client_last_name,
       user_id: extendedProps.user_id,
-      durationMinutes: Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 60000)
+      durationMinutes: Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 60000),
+      client_email: extendedProps.client_email,
+      client_phone_number: extendedProps.client_phone_number,
+      staff_email: extendedProps.staff_email,
+      staff_first_name: extendedProps.staff_first_name,
+      staff_last_name: extendedProps.staff_last_name,
+      client_note: extendedProps.client_note,
+      staff_note: extendedProps.staff_note
     };
+    
 
     console.log('*** Termin aus Kalender (onEventClick - CLIENT) ausgewählt:', fullAppointmentData); // Auch hier ein Log zur Bestätigung
     setappointment(fullAppointmentData); // Übergabe der vollen Daten
@@ -691,6 +699,7 @@ const onEventClick = useCallback((info) => {
     }
   }, [user, fetchAppointments, initialEventDataForModal, setLastUsedTitle, setLastUsedLocation, setLastUsedDuration]);
 
+  console.log('🧪 calendarAppointments (Rohdaten):', calendarAppointments);
 
   // Erstellen der Event-Objekte für FullCalendar
   const events = calendarAppointments.map((a) => ({
@@ -698,16 +707,21 @@ const onEventClick = useCallback((info) => {
     title: a.title || 'Termin',
     start: a.start_time,
     end: a.end_time,
-    extendedProps: {
-      first_name: a.client_first_name,
-      last_name: a.client_last_name,
-      title: a.title,
-      location: a.location,
-      user_id: a.user_id,
-      client_email: a.client_email,
-      client_phone_number: a.client_phone_number,
-    }
+      extendedProps: {
+        first_name: a.client_first_name,
+        last_name: a.client_last_name,
+        location: a.location,
+        user_id: a.user_id,
+        client_email: a.client_email,
+        client_phone_number: a.client_phone_number,
+        staff_email: a.staff_email,
+        staff_first_name: a.staff_first_name,
+        staff_last_name: a.staff_last_name,
+        client_note: a.client_note,
+        staff_note: a.staff_note,
+      }    
   }));
+  
 
     // Funktion zum Öffnen des Kunden-Details-Modals
     const handleClientCardClick = (client) => {
@@ -1436,24 +1450,46 @@ const onEventClick = useCallback((info) => {
           <div className="modal-overlay">
             <div className="modal-content">
               <h3>📅 Termin-Details</h3>
-              <button
-                onClick={() => triggerCopyAppointment(appointment)}
-                className="copy-button-inline"
-                title="Termin kopieren"
-              >
-                📋 Kopieren
-              </button>
-              <p><strong>Kunde:</strong> {appointment.fullName}</p>
-              <p><strong>Datum:</strong> {appointment.dateFormatted}</p>
-              <p><strong>Zeit:</strong> {appointment.timeRange}</p>
+              <p>
+                <strong>Kunde:</strong>{' '}
+                {`${appointment.client_first_name || ''} ${appointment.client_last_name || ''}`.trim()}
+              </p>
+
+              <p>
+                <strong>Datum:</strong>{' '}
+                {new Date(appointment.start_time).toLocaleDateString('de-CH', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </p>
+
+              <p>
+                <strong>Zeit:</strong>{' '}
+                {`${new Date(appointment.start_time).toLocaleTimeString('de-CH', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })} – ${new Date(appointment.end_time).toLocaleTimeString('de-CH', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}`}
+              </p>
+
               <p><strong>Ort:</strong> {appointment.location}</p>
               <p><strong>Thema:</strong> {appointment.title}</p>
+
               <div className="button-row">
                 <button onClick={() => setIsAppointmentDetailsModalOpen(false)}>Schliessen</button>
+                <button
+                onClick={() => triggerCopyAppointment(appointment)}
+                className="copy-button-inline"
+                title="Termin kopieren">📋 Kopieren</button>
               </div>
             </div>
           </div>
         )}
+
 
         {/* Das neue/umbenannte AppointmentModal */}
         {isAppointmentModalOpen && (user?.role === 'staff' || user?.role === 'admin' || user?.role === 'client') && ( 

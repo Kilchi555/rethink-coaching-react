@@ -5,6 +5,9 @@ import './Dashboard.css';
 import CalendarComponent from './CalendarComponent';
 import AppointmentModal from './AppointmentModal'; // <<-- NEU: Dein umbenanntes Modal
 import EditableNoteField from './EditableNoteField'; // <-- NEU: Importiere die neue Komponente
+import AppointmentNotes from './AppointmentNotes';
+
+
 
 // --- Hilfskomponenten ---
 const LoadingSpinner = ({ message }) => (
@@ -16,7 +19,19 @@ const LoadingSpinner = ({ message }) => (
 
 // --- Hauptkomponente: Dashboard ---
 const Dashboard = () => {
-  const { user, isLoggedIn, loading: authLoading, logout, futureAppointments, pastAppointments, fetchAppointments, authProps } = useAuth();
+  const {
+    user,
+    isLoggedIn,
+    loading: authLoading,
+    logout,
+    calendarAppointments,
+    setCalendarAppointments,
+    fetchAppointments,
+    authProps,
+    futureAppointments = [],
+    pastAppointments = [],
+  } = useAuth();
+  
   const navigate = useNavigate();
 
   const [dashboardError, setDashboardError] = useState(null);
@@ -62,7 +77,6 @@ const Dashboard = () => {
   const [lastUsedLocation, setLastUsedLocation] = useState('');
   const [lastUsedDuration, setLastUsedDuration] = useState(60);
 
-  const [calendarAppointments, setCalendarAppointments] = useState([]);
   const [copiedAppointment, setCopiedAppointment] = useState(null);
   const [originalCalendarAppointments, setOriginalCalendarAppointments] = useState([]);
   const [hasChanges, setHasChanges] = useState(false);
@@ -73,6 +87,9 @@ const Dashboard = () => {
   const [pendingEventDrop, setPendingEventDrop] = useState(null);
   const [sendSmsNotification, setSendSmsNotification] = useState(true);
   const [originalDroppedEvent, setOriginalDroppedEvent] = useState(null);
+  const [shouldLoadStats, setShouldLoadStats] = useState(true);
+
+  
 
   const handleLogout = useCallback(async () => {
     console.log('User initiated logout.');
@@ -229,14 +246,13 @@ const Dashboard = () => {
     }
   }, [isLoggedIn, user?.role, fetchAdminStatistics]); // Abhängigkeiten
   
-  // useEffect zum Laden der Mitarbeiter-Statistiken
   useEffect(() => {
-    // Nur laden, wenn der Benutzer eingeloggt ist und die Rolle 'staff' oder 'admin' hat
-    if (isLoggedIn && (user?.role === 'staff' || user?.role === 'admin')) {
+    if (shouldLoadStats && isLoggedIn && (user?.role === 'staff' || user?.role === 'admin')) {
       console.log('useEffect: Lade Mitarbeiter-Statistiken...');
       fetchstaffStatistics();
+      setShouldLoadStats(false);
     }
-  }, [isLoggedIn, user?.role, fetchstaffStatistics]); // Abhängigkeiten
+  }, [shouldLoadStats, isLoggedIn, user?.role, fetchstaffStatistics]);
   
   // Ihr Haupt-useEffect (Kunden/Kalender) - BEHALTEN SIE NUR EINEN DIESER BLÖCKE
   useEffect(() => {
@@ -247,39 +263,34 @@ const Dashboard = () => {
       user: user ? user.role : 'kein User',
       isclientsLoading,
       hasFetchedclients: hasFetchedclients.current,
-      // futureAppointments ist hier das, was wir im AuthContext bekommen
-      futureAppointmentsLength: futureAppointments ? futureAppointments.length : 0,
-      originalCalendarAppointmentsLength: originalCalendarAppointments ? originalCalendarAppointments.length : 0,
+      futureAppointmentsLength: calendarAppointments?.filter(a => new Date(a.end_time) >= new Date())?.length ?? 0,
+      pastAppointmentsLength: calendarAppointments?.filter(a => new Date(a.end_time) < new Date())?.length ?? 0,
+      originalCalendarAppointmentsLength: originalCalendarAppointments?.length ?? 0,      
     });
-
+  
     if (authLoading) {
       console.log('Haupt-useEffect übersprungen: authLoading ist true.');
       return;
     }
+  
     if (!isLoggedIn) {
       console.log('Haupt-useEffect übersprungen: isLoggedIn ist false. Navigiere zu /login.');
       navigate('/login');
       return;
     }
-
-    // --- LOGIK ZUM SETZEN DER KALENDERTERMINE FÜR ALLE ROLLEN ---
-    // Dies muss für JEDE Rolle passieren, da jeder seine Termine im Kalender sehen soll.
-    console.log('futureAppointments Länge (aus useAuth):', futureAppointments.length);
-    if (futureAppointments.length > 0 && JSON.stringify(futureAppointments) !== JSON.stringify(originalCalendarAppointments)) {
-      console.log('futureAppointments hat sich geändert oder ist neu. Setze Kalender-Termine und Original.');
-      setCalendarAppointments(futureAppointments);
-      setOriginalCalendarAppointments(futureAppointments);
-    } else if (futureAppointments.length === 0 && originalCalendarAppointments.length > 0) {
-      console.log('futureAppointments ist leer, aber Original hat Daten. Setze Kalender-Termine und Original auf leer.');
-      setCalendarAppointments([]);
-      setOriginalCalendarAppointments([]);
+  
+    // ✅ NEU: Kombinierte Logik für alle Rollen → alle Termine (future + past)
+    const combinedAppointments = [...calendarAppointments]; // oder direkte Prüfung
+  
+    if (JSON.stringify(combinedAppointments) !== JSON.stringify(originalCalendarAppointments)) {
+      console.log('📅 Setze Kalendertermine (inkl. vergangene)');
+      setCalendarAppointments(combinedAppointments);
+      setOriginalCalendarAppointments(combinedAppointments);
     } else {
-      console.log('Kalender-Termine: Keine Änderungen an futureAppointments.');
+      console.log('📅 Keine Änderungen an combinedAppointments');
     }
-
-    // --- ROLLEMBASIERTE LOGIK FÜR KUNDEN-DATENABRUF (nur Staff/Admin) ---
-    // fetchclients() enthält Logik für allclients und myStaffclients,
-    // was nur für Staff/Admin relevant ist (z.B. für Dropdowns im AppointmentModal).
+  
+    // 👇 Staff/Admin: Kunden laden (wie gehabt)
     if (user && (user?.role === 'staff' || user?.role === 'admin')) {
       if (!hasFetchedclients.current && !isclientsLoading) {
         console.log('Starte fetchclients, da noch nicht geladen und nicht in Ladezustand.');
@@ -290,19 +301,20 @@ const Dashboard = () => {
     } else {
       console.log('Kunden-Fetches übersprungen, da User-Rolle nicht Staff/Admin ist.');
     }
-
+  
   }, [
     authLoading,
     isLoggedIn,
-    user, // user ist eine Abhängigkeit, da die Rolle die Logik beeinflusst
+    user,
     navigate,
     fetchclients,
-    isclientsLoading, // isclientsLoading muss hier bleiben, da es im if-Statement gelesen wird
-    futureAppointments, // Wichtig: futureAppointments muss hier als Abhängigkeit stehen!
+    isclientsLoading,
+    calendarAppointments, // ✅ statt future/past
     originalCalendarAppointments,
     setCalendarAppointments,
     setOriginalCalendarAppointments
   ]);
+  
 
   // NEU: Funktion zum Duplizieren nach dem Drag & Drop
   const duplicateEventDrop = useCallback(async () => {
@@ -351,25 +363,56 @@ const Dashboard = () => {
     console.log('🟢 handleEventDrop ausgelöst');
     console.log('Neuer Event:', event);
     console.log('Alter Event:', oldEvent);
-
+  
+    // Prüfe, ob extendedProps existieren, sonst aus dem lokalen State holen
+    let extendedProps = event.extendedProps;
+    if (!extendedProps) {
+      const original = calendarAppointments.find(a => a.id.toString() === event.id.toString());
+      extendedProps = original
+        ? {
+            topic: original.title,
+            location: original.location,
+            user_id: original.user_id,
+            client_note: original.client_note,
+            staff_note: original.staff_note,
+          }
+        : {};
+    }
+  
+    console.log('🔍 extendedProps beim Verschieben:', extendedProps);
+  
     const id = parseInt(event.id);
-    const updated = calendarAppointments.map(app =>
+  
+    const updated = calendarAppointments?.map(app =>
       app.id === id
         ? {
             ...app,
             start_time: event.start.toISOString(),
             end_time: event.end.toISOString(),
+            title: event.title,
+            topic: extendedProps.topic,
+            location: extendedProps.location,
+            user_id: extendedProps.user_id,
+            client_note: extendedProps.client_note,
+            staff_note: extendedProps.staff_note,
           }
         : app
     );
-
+  
     setCalendarAppointments(updated);
     setHasChanges(true);
-
     setPendingEventDrop(event);
     setOriginalDroppedEvent(oldEvent);
     setShowConfirmationModal(true);
-  }, [calendarAppointments, setCalendarAppointments, setHasChanges]);
+  }, [
+    calendarAppointments,
+    setCalendarAppointments,
+    setHasChanges,
+    setPendingEventDrop,
+    setOriginalDroppedEvent,
+    setShowConfirmationModal,
+  ]);
+  
 
   const confirmEventDrop = useCallback(async () => {
     if (!pendingEventDrop) return;
@@ -393,6 +436,8 @@ const Dashboard = () => {
         body: JSON.stringify({
           start_time: updatedAppointment.start_time,
           end_time: updatedAppointment.end_time,
+          location: updatedAppointment.location,  // HIER hinzufügen!
+          title: updatedAppointment.title,        // HIER hinzufügen!
           sendSms: sendSmsNotification,
           old_start_time: originalDroppedEvent.start.toISOString(),
           old_end_time: originalDroppedEvent.end.toISOString(),
@@ -466,64 +511,80 @@ const Dashboard = () => {
   setIsCalendarModalOpen(true); // Öffnet den Kalender
 }, [setCopiedAppointment, setIsAppointmentDetailsModalOpen, setIsAppointmentModalOpen, setIsCalendarModalOpen]);
 
-const onEventClick = useCallback((info) => {
-  if (user?.role === 'staff' || user?.role === 'admin') {
-    const eventToEdit = calendarAppointments.find(app => app.id === parseInt(info.event.id));
-    if (eventToEdit) {
-      // --- DIESE ZEILE HINZUFÜGEN ODER SICHERSTELLEN ---
-      console.log('*** Termin aus Kalender (onEventClick - STAFF/ADMIN) ausgewählt:', eventToEdit);
-      setappointment(eventToEdit); // <-- JETZT WIRD AUCH FÜR STAFF/ADMIN DER ZUSTAND GESETZT!
-      // --------------------------------------------------
+    const [expandedAppointmentId, setExpandedAppointmentId] = useState(null);
 
-      setInitialEventDataForModal({
-        id: eventToEdit.id,
-        title: eventToEdit.title || eventToEdit.title,
-        location: eventToEdit.location,
-        start_time: new Date(eventToEdit.start_time),
-        end_time: new Date(eventToEdit.end_time),
-        user_id: eventToEdit.user_id,
-      });
-      setIsAppointmentModalOpen(true); // Öffnet das Bearbeitungsmodal für Staff/Admin
-    }
-  } else {
-    // Für Kunden nur das Details-Modal anzeigen (dieser Teil war bereits korrekt)
-    const event = info.event;
-    const { title, start, end, extendedProps } = event;
 
-    const fullAppointmentData = {
-      id: parseInt(event.id),
-      title: extendedProps.title || title,
-      location: extendedProps.location,
-      start_time: start,
-      end_time: end,
-      client_first_name: extendedProps.client_first_name,
-      client_last_name: extendedProps.client_last_name,
-      user_id: extendedProps.user_id,
-      durationMinutes: Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 60000),
-      client_email: extendedProps.client_email,
-      client_phone_number: extendedProps.client_phone_number,
-      staff_email: extendedProps.staff_email,
-      staff_first_name: extendedProps.staff_first_name,
-      staff_last_name: extendedProps.staff_last_name,
-      client_note: extendedProps.client_note,
-      staff_note: extendedProps.staff_note
-    };
+    const onEventClick = useCallback((info) => {
+      const eventId = parseInt(info.event.id);
+      const appointment = calendarAppointments.find(app => app.id === eventId);
+      if (!appointment) {
+        console.warn('Kein Termin im State gefunden:', eventId);
+        return;
+      }
+
+      const isPast = new Date(appointment.end_time) < new Date();
+      console.log(`📅 Termin ${eventId} geklickt – isPast:`, isPast);
+
+      if (isPast) {
+        setappointment(appointment);
+        setExpandedAppointmentIds(prev => ({ ...prev, [appointment.id]: true }));
+      
+        if (user?.role === 'staff' || user?.role === 'admin') {
+          setEditingNoteIds(prev => ({ ...prev, [appointment.id]: 'staff' }));
+        } else if (user?.role === 'client') {
+          setEditingNoteIds(prev => ({ ...prev, [appointment.id]: 'client' }));
+        }
+      
+        // 🆕 Zeige das Notiz-Modal explizit an
+        setIsAppointmentDetailsModalOpen(true);
+      }
+       else {
+        // 👉 Zukunftstermin – wie gehabt: Modal öffnen
+        if (user?.role === 'staff' || user?.role === 'admin') {
+          console.log('*** Termin aus Kalender (ZUKUNFT - STAFF/ADMIN):', appointment);
+          setappointment(appointment);
+
+          setInitialEventDataForModal({
+            id: appointment.id,
+            title: appointment.title,
+            location: appointment.location,
+            start_time: new Date(appointment.start_time),
+            end_time: new Date(appointment.end_time),
+            user_id: appointment.user_id,
+          });
+
+          setIsAppointmentModalOpen(true);
+        } else {
+          // Kunde – Zukunftstermin Detailmodal öffnen
+          console.log('*** Termin aus Kalender (ZUKUNFT - CLIENT):', appointment);
+          setappointment(appointment);
+          setIsAppointmentDetailsModalOpen(true);
+        }
+      }
+    }, [
+      user,
+      calendarAppointments,
+      setappointment,
+      setIsAppointmentDetailsModalOpen,
+      setIsAppointmentModalOpen,
+      setInitialEventDataForModal,
+      setExpandedAppointmentId,
+      setEditingNoteIds
+    ]);
+
+    const cancelEventDrop = useCallback(() => {
+      console.log('Abbrechen der Terminverschiebung.');
+      setCalendarAppointments(originalCalendarAppointments);
+      setHasChanges(false);
+      setShowConfirmationModal(false);
+      setPendingEventDrop(null);
+      setOriginalDroppedEvent(null);
     
-
-    console.log('*** Termin aus Kalender (onEventClick - CLIENT) ausgewählt:', fullAppointmentData); // Auch hier ein Log zur Bestätigung
-    setappointment(fullAppointmentData); // Übergabe der vollen Daten
-    setIsAppointmentDetailsModalOpen(true);
-  }
-}, [user, calendarAppointments, setappointment, setIsAppointmentDetailsModalOpen, setIsAppointmentModalOpen, setInitialEventDataForModal]);
-
-  const cancelEventDrop = useCallback(() => {
-    console.log('Abbrechen der Terminverschiebung.');
-    setCalendarAppointments(originalCalendarAppointments);
-    setHasChanges(false);
-    setShowConfirmationModal(false);
-    setPendingEventDrop(null);
-    setOriginalDroppedEvent(null);
-  }, [setCalendarAppointments, originalCalendarAppointments, setHasChanges]);
+      if (calendarRef.current) {
+        calendarRef.current.getApi().refetchEvents();
+      }
+    }, [setCalendarAppointments, originalCalendarAppointments, setHasChanges, calendarRef]);
+    
 
   const handleSaveChanges = useCallback(async () => {
     try {
@@ -569,7 +630,12 @@ const onEventClick = useCallback((info) => {
   const handleReset = useCallback(() => {
     setCalendarAppointments(originalCalendarAppointments);
     setHasChanges(false);
-  }, [setCalendarAppointments, originalCalendarAppointments, setHasChanges]);
+  
+    if (calendarRef.current) {
+      calendarRef.current.getApi().refetchEvents();
+    }
+  }, [setCalendarAppointments, originalCalendarAppointments, setHasChanges, calendarRef]);
+  
 
   const handleCopy = useCallback((eventId) => {
     const found = calendarAppointments.find(a => a.id === eventId);
@@ -662,23 +728,6 @@ const onEventClick = useCallback((info) => {
 
       alert(`✅ Termin erfolgreich ${isEditing ? 'aktualisiert' : 'gebucht'}.`);
 
-      // 🔄 Optimistisches Update im Frontend durchführen
-      const updatedAppointments = calendarAppointments.map(appt => {
-        if (appt.id === initialEventDataForModal.id) {
-          return {
-            ...appt,
-            title: appointmentDataFromModal.title,
-            location: appointmentDataFromModal.location,
-            start_time: appointmentDataFromModal.start_time,
-            end_time: appointmentDataFromModal.end_time
-          };
-        }
-        return appt;
-      });
-      setCalendarAppointments(updatedAppointments);
-      console.log('🔄 Terminliste aktualisiert (Frontend optimistisch):', updatedAppointments);
-
-
       // "Zuletzt verwendet"-States aktualisieren, basierend auf den Daten aus dem Modal
       setLastUsedTitle(appointmentDataFromModal.title);
       setLastUsedLocation(appointmentDataFromModal.location);
@@ -699,15 +748,30 @@ const onEventClick = useCallback((info) => {
     }
   }, [user, fetchAppointments, initialEventDataForModal, setLastUsedTitle, setLastUsedLocation, setLastUsedDuration]);
 
-  console.log('🧪 calendarAppointments (Rohdaten):', calendarAppointments);
-
   // Erstellen der Event-Objekte für FullCalendar
-  const events = calendarAppointments.map((a) => ({
-    id: a.id,
-    title: a.title || 'Termin',
-    start: a.start_time,
-    end: a.end_time,
+  const now = new Date();
+
+  const events = calendarAppointments?.map((a) => {
+    const isPast = new Date(a.end_time) < now;
+    const hasNote = !!a.staff_note || !!a.client_note;
+  
+    const classNames = [];
+  
+    if (isPast) {
+      classNames.push('past-appointment');
+      if (hasNote) {
+        classNames.push('has-note');
+      }
+    }
+  
+    return {
+      id: a.id.toString(), // Sicherstellen, dass es ein String ist
+      title: a.title || 'Termin', // Wird im Kalender angezeigt (entspricht Thema)
+      start: a.start_time,
+      end: a.end_time,
+      className: classNames,
       extendedProps: {
+        topic: a.title, // ✅ HIER: Das Thema explizit auch in extendedProps rein!
         first_name: a.client_first_name,
         last_name: a.client_last_name,
         location: a.location,
@@ -719,8 +783,12 @@ const onEventClick = useCallback((info) => {
         staff_last_name: a.staff_last_name,
         client_note: a.client_note,
         staff_note: a.staff_note,
-      }    
-  }));
+      }
+    };
+  });
+  
+  console.log('🔍 extendedProps beim Verschieben:', JSON.stringify(event.extendedProps, null, 2));
+
   
 
     // Funktion zum Öffnen des Kunden-Details-Modals
@@ -733,32 +801,42 @@ const onEventClick = useCallback((info) => {
       console.log('--- handleEditNoteClick aufgerufen ---');
       console.log('  appointmentId:', appointmentId, 'type:', type);
     
+      // 🔍 Termin finden – aus calendar ODER past
+      const currentAppointment =
+        calendarAppointments.find(appt => appt.id === appointmentId);
+    
+      const currentNote = type === 'client'
+        ? currentAppointment?.client_note
+        : currentAppointment?.staff_note;
+    
+      // ✅ 1. ZUERST temp content setzen
+      if (type === 'client') {
+        setTempClientNoteContent(currentNote || '');
+      } else if (type === 'staff') {
+        setTempStaffNoteContent(currentNote || '');
+      }
+    
+      // ✅ 2. DANN Editor aktivieren
       setEditingNoteIds(prev => {
         const newState = { ...prev, [appointmentId]: type };
         console.log('  Neuer editingNoteIds Zustand nach setEditingNoteIds:', newState);
         return newState;
       });
     
-      const currentAppointment = calendarAppointments.find(appt => appt.id === appointmentId);
-    
-      const currentNote = type === 'client' ? currentAppointment?.client_note : currentAppointment?.staff_note;
-    
-      if (type === 'client') {
-        setTempClientNoteContent(currentNote || '');
-      } else if (type === 'staff') {
-        setTempStaffNoteContent(currentNote || '');
-      }
     }, [calendarAppointments, setEditingNoteIds, setTempClientNoteContent, setTempStaffNoteContent]);
+    
     
 
   const renderAppointmentItem = (appointment, type) => {
-    const isExpanded = expandedAppointmentIds[appointment.id] === true;
+    const isExpanded = !!expandedAppointmentIds[appointment.id];
     const startDate = new Date(appointment.start_time);
     const durationMinutes = Math.floor((new Date(appointment.end_time) - startDate) / 60000);
     const isEditingClientNote = editingNoteIds[appointment.id] === 'client';
     const isEditingStaffNote = editingNoteIds[appointment.id] === 'staff';
     const isAnyNoteCurrentlyEditing = isEditingClientNote || isEditingStaffNote;
     const noteTypeInEdit = isEditingClientNote ? 'client' : (isEditingStaffNote ? 'staff' : null);
+    const isFuture = new Date(appointment.start_time) > new Date();
+
 
     const formattedDate = startDate.toLocaleDateString('de-DE', {
       weekday: 'long',
@@ -775,23 +853,35 @@ const onEventClick = useCallback((info) => {
 
     const handleAppointmentClick = () => {
       setappointment(appointment);
+    
       setExpandedAppointmentIds(prev => ({
         ...prev,
         [appointment.id]: !isExpanded
       }));
-      if (!isExpanded) { // Nur wenn Notizen gerade aufgeklappt werden
+    
+      // Wenn der Termin gerade aufgeklappt wird:
+      if (!isExpanded) {
         setTempClientNoteContent(appointment.client_note || '');
         setTempStaffNoteContent(appointment.staff_note || '');
-        // Und sicherstellen, dass der Bearbeitungsmodus zurückgesetzt wird
-        setEditingNoteIds({});
+    
+        // ❗ Nur Bearbeitungsstatus für diesen Termin zurücksetzen, wenn er NICHT aktiv ist
+        setEditingNoteIds(prev => {
+          const isEditing = !!prev[appointment.id];
+          if (!isEditing) return prev; // Nichts ändern
+          // Falls du aktiv zurücksetzen willst, entferne ihn gezielt:
+          const newState = { ...prev };
+          delete newState[appointment.id];
+          return newState;
+        });
       }
     };
+    
 
     return (
       <div
       // WICHTIG: Dieser Key muss sich ändern, wenn sich der Notizinhalt ändert!
       key={`${appointment.id}-${appointment.staff_note || ''}-${appointment.client_note || ''}`}
-      className={`appointment-item ${isExpanded ? 'expanded' : ''}`}
+      className={`appointment-item ${isExpanded ? 'expanded' : ''} ${isFuture ? 'future-border' : 'past-border'}`}
       onClick={handleAppointmentClick} // Dein Click-Handler für das Aufklappen
     >
         <div className="appointment-info">
@@ -828,288 +918,145 @@ const onEventClick = useCallback((info) => {
               {isExpanded ? 'Notizen ausblenden' : 'Notizen anzeigen/aufklappen'}
             </p>
 
-                {isExpanded && appointment && (
-                <div className="notes-section" onClick={(e) => e.stopPropagation()} >
-
-                      {/* Kundennotiz-Bereich */}
-                      <div className="note-container client-note-area">
-                        <h4>Notiz des Kunden:</h4>
-                        {user?.role === 'client' ? (
-                          <>
-                           <EditableNoteField
-                                initialContent={
-                                  isEditingClientNote
-                                    ? tempClientNoteContent
-                                    : (calendarAppointments.find(a => a.id === appointment.id)?.client_note || '')
-                                }
-                                isEditing={isEditingClientNote}
-                                content={tempClientNoteContent}
-                              onContentChange={setTempClientNoteContent}
-                              onSave={(contentToSave) => saveNote(appointment.id, 'client', contentToSave)} // saveNote muss return true/false
-                              onNoteSaved={() => setTempClientNoteContent('')} // <--- NEU: Leere temporären Inhalt erst hier!
-                              editorRef={clientNoteEditorRef}
-                          />
-                            {/* Button für Client-Notizen */}
-                            <button
-                                className="note-action-button client-note-button" // Eine spezifische Klasse ist nützlich für CSS
-                                onClick={async (e) => { // Wichtig: Der onClick-Handler ist jetzt 'async'
-                                    e.stopPropagation(); // Verhindert, dass der Klick das übergeordnete Termin-Element beeinflusst
-                                    e.preventDefault();  // Verhindert Standard-Button-Verhalten (z.B. Formular-Absendung)
-
-                                    if (!appointment) {
-                                        console.warn('Kein Termin ausgewählt, kann Client-Notiz nicht bearbeiten/speichern.');
-                                        return; // Funktion hier beenden, wenn kein Termin ausgewählt ist
-                                    }
-
-                                    if (isEditingClientNote) {
-                                        // Wenn die Client-Notiz im Bearbeitungsmodus ist, dann SPEICHERN
-                                        // Wir warten auf das Ergebnis von saveNote (true für Erfolg, false für Fehler)
-                                        const saveSuccessful = await saveNote(appointment.id, 'client', tempClientNoteContent);
-
-                                        if (saveSuccessful) {
-                                            // Bei erfolgreichem Speichern:
-                                            // 1. Temporären Inhalt leeren
-                                            setTempClientNoteContent('');
-                                            // 2. Bearbeitungsmodus für diesen Termin beenden
-                                            setEditingNoteIds(prev => ({ ...prev, [appointment.id]: false }));
-                                        }
-                                    } else {
-                                        // Wenn die Client-Notiz NICHT im Bearbeitungsmodus ist, dann BEARBEITEN starten
-                                        handleEditNoteClick(appointment.id, 'client');
-                                    }
-                                }}
-                            >
-                                {/* Der Button-Text ändert sich je nach aktuellem Bearbeitungszustand */}
-                                {isEditingClientNote ? 'Client-Notiz speichern' : 'Client-Notiz bearbeiten'}
-                            </button>
-                          </>
-                        ) : (
-                          <div
-                            className="note-text"
-                            dangerouslySetInnerHTML={{ __html: appointment.client_note || 'Keine Notiz vom Klienten vorhanden.' }}
-                          ></div>
-                        )}
-                      </div>
-
-                      {/* Mitarbeiternotiz-Bereich */}
-                      <div className="note-container staff-note-area">
-                        <h4>Notiz des Coaches:</h4>
-                        {(user?.role === 'staff' || user?.role === 'admin') ? (
-                          <>
-                            <EditableNoteField
-                                initialContent={
-                                  isEditingStaffNote
-                                    ? tempStaffNoteContent
-                                    : (calendarAppointments.find(a => a.id === appointment.id)?.staff_note || '')
-                                }
-                                isEditing={isEditingStaffNote}
-                                content={tempStaffNoteContent}
-                                onContentChange={setTempStaffNoteContent}
-                                onSave={(contentToSave) => saveNote(appointment.id, 'staff', contentToSave)} // saveNote muss return true/false
-                                onNoteSaved={() => setTempStaffNoteContent('')} // <--- NEU: Leere temporären Inhalt erst hier!
-                                editorRef={staffNoteEditorRef}
-                            />
-                            {/* Button für Staff-Notizen */}
-                                <button
-                                className="note-action-button staff-note-button"
-                                onClick={async (e) => { // <--- onClick async machen!
-                                    e.stopPropagation();
-                                    e.preventDefault();
-
-                                    if (!appointment) {
-                                        console.warn('Kein Termin ausgewählt, kann Staff-Notiz nicht bearbeiten/speichern.');
-                                        return;
-                                    }
-
-                                    if (isEditingStaffNote) {
-                                        // Speichere die Notiz und warte auf Erfolg
-                                        const saveSuccessful = await saveNote(appointment.id, 'staff', tempStaffNoteContent);
-                                        if (saveSuccessful) {
-                                            // Bei Erfolg: Temporären Inhalt leeren und Bearbeitungsmodus beenden.
-                                            setTempStaffNoteContent('');
-                                            setEditingNoteIds(prev => ({ ...prev, [appointment.id]: false }));
-                                        }
-                                    } else {
-                                        handleEditNoteClick(appointment.id, 'staff');
-                                    }
-                                }}
-                                >
-                                {isEditingStaffNote ? 'Staff-Notiz speichern' : 'Staff-Notiz bearbeiten'}
-                                </button>
-                          </>
-                        ) : (
-                    <div
-                      className="note-text"
-                      dangerouslySetInnerHTML={{ __html: appointment.staff_note || 'Keine Notiz vom Coach vorhanden.' }}
-                    ></div>
-                  )}
-                </div>
-              </div>
+            {isExpanded && appointment && (
+              <AppointmentNotes
+                appointment={appointment}
+                user={user}
+                calendarAppointments={calendarAppointments}
+                tempClientNoteContent={tempClientNoteContent}
+                tempStaffNoteContent={tempStaffNoteContent}
+                setTempClientNoteContent={setTempClientNoteContent}
+                setTempStaffNoteContent={setTempStaffNoteContent}
+                clientNoteEditorRef={clientNoteEditorRef}
+                staffNoteEditorRef={staffNoteEditorRef}
+                editingNoteIds={editingNoteIds}
+                handleEditNoteClick={handleEditNoteClick}
+                saveNote={saveNote}
+                setShouldLoadStats={setShouldLoadStats}
+              />
             )}
+
           </div>
         );
       };
 
-      const saveNote = useCallback(async (appointmentId, type, noteContentToSave) => {
+      const saveNote = useCallback(async (appointmentId, type, noteContentToSave, exitEditMode = false) => {
         console.log('--- START saveNote ---');
-        console.log('1. noteContentToSave (Inhalt aus Editor):', noteContentToSave);
+        console.log(`⚠️ saveNote wurde aufgerufen für Termin ${appointmentId} [${type}]`);
+        console.log('1. noteContentToSave (Editor-Inhalt):', noteContentToSave);
+      
         // ✨ LEER-VALIDIERUNG ✨
         const cleanedNote = (noteContentToSave || '')
-        .replace(/<br\s*\/?>/gi, '')
-        .replace(/&nbsp;/gi, '')
-        .replace(/\s+/g, '')
-        .trim();
+          .replace(/<br\s*\/?>/gi, '')
+          .replace(/&nbsp;/gi, '')
+          .replace(/\s+/g, '')
+          .trim();
       
-      if (!cleanedNote) {
-        alert('Die Notiz darf nicht leer sein.');
-        return false;
-      }
-      
-
-        console.log('2. Speichern für Termin-ID:', appointmentId, 'Typ:', type);
-    
         if (!user) {
-            console.error('Benutzer ist nicht authentifiziert.');
-            return false; // Sofort beenden und Fehler anzeigen, wenn kein Benutzer authentifiziert ist
+          console.error('⛔ Benutzer ist nicht authentifiziert.');
+          return false;
         }
-    
-        let url = `http://localhost:3000/api/update-note`;
-        let method = 'POST';
-    
-        let requestBody = {
-          appointmentId: appointmentId,
-          note: noteContentToSave,
-          type: type,
-        };
-        console.log('3. Request Body zum Backend:', requestBody);
-    
-        // Frontend-Berechtigungsprüfung (wie zuvor besprochen)
+      
+        // 🔐 Schutz: Clients dürfen keine staff-Notizen ändern
         if (user.role === 'client' && type === 'staff') {
-            console.warn('Client darf keine Staff-Notiz bearbeiten.');
-            alert('Sie sind nicht berechtigt, Mitarbeiter-Notizen zu bearbeiten.'); // Feedback für den Benutzer
-            return false; // Aktion verweigern
+          console.warn('⛔ Client darf keine Staff-Notiz bearbeiten.');
+          alert('Sie sind nicht berechtigt, Mitarbeiter-Notizen zu bearbeiten.');
+          return false;
         }
-    
-        // Originalzustände für den potenziellen Rollback sichern
-        const originalAppointments = [...calendarAppointments];
+              
+        // 🔁 Originalzustände sichern für Rollback
+        const originalAppointments = [...calendarAppointments.map(a => ({ ...a }))];
         const originalAppointment = appointment ? { ...appointment } : null;
-        const originalTempClientNoteContent = tempClientNoteContent; // Aktuellen temp-Zustand sichern
+        const originalTempClientNoteContent = tempClientNoteContent;
         const originalTempStaffNoteContent = tempStaffNoteContent;
-        const originalEditingNoteIds = { ...editingNoteIds }; // Aktuellen Bearbeitungszustand sichern
-    
-    
-        console.log('4. Original appointment:', originalAppointment);
-        console.log('5. Original calendarAppointments (vor Optimistic Update):', originalAppointments);
-    
-        // **********************************
-        // OPTIMISTISCHES UI UPDATE
-        // **********************************
-        // Den Notizinhalt im Frontend-State aktualisieren, BEVOR die Anfrage an das Backend gesendet wird.
-        const updatedAppointments = calendarAppointments.map(appt => {
-          if (appt.id === appointmentId) {
-              const updatedAppt = {
-                  ...appt,
-                  [type === 'client' ? 'client_note' : 'staff_note']: noteContentToSave,
-              };
-              console.log('6. Gefundenen Termin im updatedAppointments-Map (Optimistic):', updatedAppt);
-              console.log(`   --> ${type}_note im Map (Optimistic):`, updatedAppt[type === 'client' ? 'client_note' : 'staff_note']);
-              return updatedAppt;
-          }
-          return appt;
-        });
-    
-        console.log('7. updatedAppointments (nach Map - Optimistic):', updatedAppointments);
-    
-        const updatedCalendarAppointments = calendarAppointments.map(appt => {
-          if (appt.id === appointmentId) {
-            return {
-              ...appt,
-              [type === 'client' ? 'client_note' : 'staff_note']: noteContentToSave,
-            };
-          }
-          return appt;
-        });
+        const originalEditingNoteIds = { ...editingNoteIds };
+
+        // 🔄 Optimistisches UI-Update (Kopie)
+        const updatedCalendarAppointments = calendarAppointments.map(appt =>
+          appt.id === appointmentId
+            ? {
+                ...appt,
+                [type === 'client' ? 'client_note' : 'staff_note']: noteContentToSave,
+              }
+            : { ...appt } // <- wichtig: immer kopieren
+        );
+
         setCalendarAppointments(updatedCalendarAppointments);
-        
-        // 👇 GANZ WICHTIG: aktualisiere auch den EINZELNEN appointment-Zustand
-        const updated = updatedCalendarAppointments.find(a => a.id === appointmentId);
-        if (updated) {
-          setappointment(updated); // <- Jetzt ist auch appointment.staff_note wirklich aktuell
-        }
-                console.log('8. Nach setCalendarAppointments - calendarAppointments (optimistisch aktualisiert):', updatedAppointments);
-    
-        const newlyUpdatedAppt = updatedAppointments.find(appt => appt.id === appointmentId);
-        if (newlyUpdatedAppt) {
-            setappointment(newlyUpdatedAppt);
-            console.log('9. Nach setappointment - newlyUpdatedAppt (optimistisch aktualisiert):', newlyUpdatedAppt);
-            console.log(`   --> ${type}_note im setappointment (optimistisch):`, newlyUpdatedAppt[type === 'client' ? 'client_note' : 'staff_note']);
+
+        // 🆕 Einzeltermin aktualisieren (Kopie!)
+        const updatedSingleAppointment = updatedCalendarAppointments.find(a => a.id === appointmentId);
+        if (updatedSingleAppointment) {
+          setappointment({ ...updatedSingleAppointment }); // <- neue Kopie setzen!
+          console.log('✅ Termin erfolgreich optimistisch aktualisiert:', updatedSingleAppointment);
         } else {
-            console.warn('9. newlyUpdatedAppt nicht gefunden nach optimistic update!');
+          console.warn('⚠️ Termin wurde im State nicht gefunden nach Update.');
         }
-    
-        // Bearbeitungsmodus sofort beenden für optimistische UI-Aktualisierung
-        setEditingNoteIds(prev => ({ ...prev, [appointmentId]: false }));
-    
-        // Die temporären Inhalte werden HIER NICHT geleert. Das geschieht
-        // erst, NACHDEM der Speichervorgang erfolgreich war und die UI
-        // den neuen initialContent erhalten hat (durch onNoteSaved im EditableNoteField
-        // oder die Button-Logik).
-    
-        // Erfolgsmeldung anzeigen (wird nach 3 Sekunden ausgeblendet)
+
+        // Optional: Bearbeitungsmodus verlassen
+        if (exitEditMode === true) {
+          setEditingNoteIds(prev => ({ ...prev, [appointmentId]: false }));
+        }
+
+        // ✨ Erfolgsmeldung anzeigen
         setShowNoteSavedMessage(true);
-        if (noteSavedTimeoutRef.current) { clearTimeout(noteSavedTimeoutRef.current); }
-        noteSavedTimeoutRef.current = setTimeout(() => { setShowNoteSavedMessage(false); }, 3000);
-    
-        // **********************************
-        // BACKEND-ANFRAGE
-        // **********************************
+        if (noteSavedTimeoutRef.current) clearTimeout(noteSavedTimeoutRef.current);
+        noteSavedTimeoutRef.current = setTimeout(() => setShowNoteSavedMessage(false), 3000);
+
+        // 🔁 Backend speichern
+        const requestBody = {
+          appointmentId,
+          note: noteContentToSave,
+          type,
+        };
+
+        console.log('📡 Sende an Backend:', requestBody);
+
         try {
-            console.log('10. Sende Anfrage an Backend...');
-            const response = await fetch(url, {
-                method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody),
-            });
-    
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('11. Backend-Fehler:', response.status, errorText);
-                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-            }
-            console.log('11. Notiz erfolgreich an Backend gesendet!');
-            const responseData = await response.json(); // Backend-Antwort (optional)
-            console.log('12. Backend-Antwort:', responseData);
-    
-            return true; // Erfolgreich gespeichert
+          const response = await fetch('/api/update-note', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ Backend-Fehler:', response.status, errorText);
+            throw new Error(`HTTP ${response.status} – ${errorText}`);
+          }
+
+          const responseData = await response.json();
+          console.log('✅ Backend-Antwort:', responseData);
+          return true;
+
         } catch (error) {
-            console.error(`13. Fehler beim Speichern der ${type} Notiz (Catch Block):`, error);
-            alert(`Fehler beim Speichern Ihrer ${type} Notiz. Bitte versuchen Sie es erneut. Details: ${error.message}`);
-            // **********************************
-            // ROLLBACK UI BEI FEHLER
-            // **********************************
-            // UI auf den Zustand vor dem Speichern zurücksetzen
-            setCalendarAppointments(originalAppointments);
-            if (originalAppointment) {
-                setappointment(originalAppointment);
-                // Temporären Inhalt auf den Originalzustand zurücksetzen
-                if (type === 'client') setTempClientNoteContent(originalTempClientNoteContent);
-                if (type === 'staff') setTempStaffNoteContent(originalTempStaffNoteContent);
-            }
-            // Bearbeitungsmodus wiederherstellen, falls er optimistisch beendet wurde
-            setEditingNoteIds(originalEditingNoteIds);
-            setShowNoteSavedMessage(false); // Erfolgsmeldung ausblenden
-    
-            return false; // Speichern fehlgeschlagen
+          console.error(`❌ Fehler beim Speichern der ${type}-Notiz:`, error);
+          alert(`Fehler beim Speichern Ihrer ${type}-Notiz. Bitte versuchen Sie es erneut. Details: ${error.message}`);
+
+          // 🔁 Rollback bei Fehler
+          setCalendarAppointments(originalAppointments);
+          if (originalAppointment) {
+            setappointment({ ...originalAppointment });
+            if (type === 'client') setTempClientNoteContent(originalTempClientNoteContent);
+            if (type === 'staff') setTempStaffNoteContent(originalTempStaffNoteContent);
+          }
+          setEditingNoteIds(originalEditingNoteIds);
+          setShowNoteSavedMessage(false);
+          return false;
         } finally {
-            console.log('--- END saveNote ---');
+          console.log('--- END saveNote ---');
         }
-    }, [
-        user, calendarAppointments, setCalendarAppointments, setEditingNoteIds,
-        setShowNoteSavedMessage, noteSavedTimeoutRef, editingNoteIds, // editingNoteIds als Abhängigkeit für Rollback
+
+      
+      }, [
+        user,
+        calendarAppointments, setCalendarAppointments,
         appointment, setappointment,
-        tempClientNoteContent, setTempClientNoteContent, // setter als Abhängigkeit, da sie im Catch Block verwendet werden
-        tempStaffNoteContent, setTempStaffNoteContent // setter als Abhängigkeit, da sie im Catch Block verwendet werden
-    ]);
+        tempClientNoteContent, setTempClientNoteContent,
+        tempStaffNoteContent, setTempStaffNoteContent,
+        setEditingNoteIds, editingNoteIds,
+        setShowNoteSavedMessage, noteSavedTimeoutRef
+      ]);
+      
 
   const handleDatesSet = useCallback((arg) => {
     if (calendarTitleRef.current) {
@@ -1193,17 +1140,17 @@ const onEventClick = useCallback((info) => {
                     <div className="stats-text"> {/* Dieser Container wird jetzt ein Flex-Container */}
                       <span className="month-stat">
                         <strong>Aktueller Monat</strong> ({monthNames[currentMonthIndex]}):{" "}
-                        {currentMonthData ? `${currentMonthData.count} Sitzungen` : "0 Sitzungen"}
+                        {currentMonthData ? `${currentMonthData.count} Termine` : "0 Termine"}
                       </span>
                       <span className="month-stat">
                         <strong>Letzter Monat</strong> ({monthNames[lastMonthIndex]}):{" "}
-                        {lastMonthData ? `${lastMonthData.count} Sitzungen` : "0 Sitzungen"}
+                        {lastMonthData ? `${lastMonthData.count} Termine` : "0 Termine"}
                       </span>
                     </div>
                   );
                 })()
               ) : (
-                <p className="stats-text">Keine erledigten Sitzungen für das aktuelle Jahr gefunden.</p>
+                <p className="stats-text">Keine erledigten Termine für das aktuelle Jahr gefunden.</p>
               )}
 
               {/* Button, um alle Monate anzuzeigen (jetzt innerhalb des neuen Containers) */}
@@ -1223,7 +1170,7 @@ const onEventClick = useCallback((info) => {
                     <ul>
                       {staffStats.monthlyCompletedSessions.map((data) => (
                         <li key={data.month}>
-                          <strong>{monthNames[parseInt(data.month) - 1]}:</strong> {data.count} Sitzungen
+                          <strong>{monthNames[parseInt(data.month) - 1]}:</strong> {data.count} Termine
                         </li>
                       ))}
                     </ul>
@@ -1341,40 +1288,37 @@ const onEventClick = useCallback((info) => {
                 </button>
 
                 {/* --- NEUER BEREICH FÜR TERMINE (ANALOG ZUM KUNDENBEREICH) --- */}
-                <div id="staff-appointments"> {/* Eine eigene ID für den Mitarbeiter-Terminbereich */}
-                  {/* Verwende hier authLoading, da es die Ladezustände der Termine abdeckt */}
-                  {authLoading ? (
-                    <LoadingSpinner message="Lade Ihre Termine..." />
-                  ) : (
-                    <>
-                      {/* Fehleranzeige für den Terminabruf */}
-                      {dashboardError && <p className="error-message">Fehler beim Laden der Termine: {dashboardError}</p>}
-                      {/* Bedingte Anzeige, falls keine Termine für den Mitarbeiter gefunden wurden */}
-                      {futureAppointments.length === 0 && pastAppointments.length === 0 ? (
-                        <p id="no-staff-appointments-message">Keine Termine gefunden.</p>
-                      ) : (
-                        <>
-                          {/* Anzeige zukünftiger Termine */}
-                          {futureAppointments.length > 0 && (
-                            <div className="appointment-group">
-                              <h3>Zukünftige Termine (Ihre Coach-Termine)</h3> {/* Angepasster Titel */}
-                              {/* Mappt über die zukünftigen Termine und rendert sie mit renderAppointmentItem */}
-                              {futureAppointments.map(app => renderAppointmentItem(app, 'future'))}
-                            </div>
-                          )}
-                          {/* Anzeige vergangener Termine */}
-                          {pastAppointments.length > 0 && (
-                            <div className="appointment-group">
-                              <h3>Vergangene Termine (Ihre Coach-Termine)</h3> {/* Angepasster Titel */}
-                              {/* Mappt über die vergangenen Termine und rendert sie mit renderAppointmentItem */}
-                              {pastAppointments.map(app => renderAppointmentItem(app, 'past'))}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
+                <div id="staff-appointments">
+                    {authLoading ? (
+                      <LoadingSpinner message="Lade Ihre Termine..." />
+                    ) : (
+                      <>
+                        {dashboardError && (
+                          <p className="error-message">Fehler beim Laden der Termine: {dashboardError}</p>
+                        )}
+
+                        {futureAppointments.length === 0 && pastAppointments.length === 0 ? (
+                          <p id="no-staff-appointments-message">Keine Termine gefunden.</p>
+                        ) : (
+                          <>
+                            {futureAppointments.length > 0 && (
+                              <div className="appointment-group">
+                                <h3>Zukünftige Termine (Ihre Coach-Termine)</h3>
+                                {futureAppointments.map(app => renderAppointmentItem(app, 'future'))}
+                              </div>
+                            )}
+                            {pastAppointments.length > 0 && (
+                              <div className="appointment-group">
+                                <h3>Vergangene Termine (Ihre Coach-Termine)</h3>
+                                {pastAppointments.map(app => renderAppointmentItem(app, 'past'))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+
                 {showNoteSavedMessage && (
                   <div id="note-saved-message">Ihre Notiz wurde gespeichert.</div>
                 )}
@@ -1395,32 +1339,35 @@ const onEventClick = useCallback((info) => {
             </button>
 
             <div id="client-appointments">
-              {authLoading ? (
-                <LoadingSpinner message="Lade Ihre Termine..." />
-              ) : (
-                <>
-                  {dashboardError && <p className="error-message">Fehler beim Laden der Termine: {dashboardError}</p>}
-                  {futureAppointments.length === 0 && pastAppointments.length === 0 ? (
-                    <p id="no-appointments-message">Keine Termine gefunden.</p>
-                  ) : (
-                    <>
-                      {futureAppointments.length > 0 && (
-                        <div className="appointment-group">
-                          <h3>Zukünftige Termine</h3>
-                          {futureAppointments.map(app => renderAppointmentItem(app, 'future'))}
-                        </div>
-                      )}
-                      {pastAppointments.length > 0 && (
-                        <div className="appointment-group">
-                          <h3>Vergangene Termine</h3>
-                          {pastAppointments.map(app => renderAppointmentItem(app, 'past'))}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </>
-              )}
-            </div>
+                {authLoading ? (
+                  <LoadingSpinner message="Lade Ihre Termine..." />
+                ) : (
+                  <>
+                    {dashboardError && (
+                      <p className="error-message">Fehler beim Laden der Termine: {dashboardError}</p>
+                    )}
+                    {futureAppointments.length === 0 && pastAppointments.length === 0 ? (
+                      <p id="no-appointments-message">Keine Termine gefunden.</p>
+                    ) : (
+                      <>
+                        {futureAppointments.length > 0 && (
+                          <div className="appointment-group">
+                            <h3>Zukünftige Termine</h3>
+                            {futureAppointments.map(app => renderAppointmentItem(app, 'future'))}
+                          </div>
+                        )}
+                        {pastAppointments.length > 0 && (
+                          <div className="appointment-group">
+                            <h3>Vergangene Termine</h3>
+                            {pastAppointments.map(app => renderAppointmentItem(app, 'past'))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+
 
             {showNoteSavedMessage && (
               <div id="note-saved-message">Ihre Notiz wurde gespeichert.</div>
@@ -1450,45 +1397,47 @@ const onEventClick = useCallback((info) => {
           <div className="modal-overlay">
             <div className="modal-content">
               <h3>📅 Termin-Details</h3>
-              <p>
-                <strong>Kunde:</strong>{' '}
-                {`${appointment.client_first_name || ''} ${appointment.client_last_name || ''}`.trim()}
-              </p>
-
-              <p>
-                <strong>Datum:</strong>{' '}
-                {new Date(appointment.start_time).toLocaleDateString('de-CH', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </p>
-
-              <p>
-                <strong>Zeit:</strong>{' '}
-                {`${new Date(appointment.start_time).toLocaleTimeString('de-CH', {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })} – ${new Date(appointment.end_time).toLocaleTimeString('de-CH', {
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}`}
-              </p>
-
+              <p><strong>Kunde:</strong> {`${appointment.client_first_name || ''} ${appointment.client_last_name || ''}`.trim()}</p>
+              <p><strong>Datum:</strong> {new Date(appointment.start_time).toLocaleDateString('de-CH', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+              })}</p>
+              <p><strong>Zeit:</strong> {`${new Date(appointment.start_time).toLocaleTimeString('de-CH', {
+                hour: '2-digit', minute: '2-digit'
+              })} – ${new Date(appointment.end_time).toLocaleTimeString('de-CH', {
+                hour: '2-digit', minute: '2-digit'
+              })}`}</p>
               <p><strong>Ort:</strong> {appointment.location}</p>
               <p><strong>Thema:</strong> {appointment.title}</p>
+
+              {/* 💬 Hier kommen die Notizfelder für vergangene Termine */}
+              <AppointmentNotes
+                appointment={appointment}
+                user={user}
+                calendarAppointments={calendarAppointments}
+                tempClientNoteContent={tempClientNoteContent}
+                tempStaffNoteContent={tempStaffNoteContent}
+                setTempClientNoteContent={setTempClientNoteContent}
+                setTempStaffNoteContent={setTempStaffNoteContent}
+                clientNoteEditorRef={clientNoteEditorRef}
+                staffNoteEditorRef={staffNoteEditorRef}
+                editingNoteIds={editingNoteIds}
+                handleEditNoteClick={handleEditNoteClick}
+                saveNote={saveNote}
+                setShouldLoadStats={setShouldLoadStats}
+              />
 
               <div className="button-row">
                 <button onClick={() => setIsAppointmentDetailsModalOpen(false)}>Schliessen</button>
                 <button
-                onClick={() => triggerCopyAppointment(appointment)}
-                className="copy-button-inline"
-                title="Termin kopieren">📋 Kopieren</button>
+                  onClick={() => triggerCopyAppointment(appointment)}
+                  className="copy-button-inline"
+                  title="Termin kopieren"
+                >📋 Kopieren</button>
               </div>
             </div>
           </div>
         )}
+
 
 
         {/* Das neue/umbenannte AppointmentModal */}

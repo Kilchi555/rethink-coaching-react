@@ -54,9 +54,11 @@ const CalendarComponent = ({
 
           events={events} // Die Events selbst werden direkt als Prop übergeben
 
-          // dateClick ist jetzt überflüssig, da 'select' die Funktionalität abdeckt
-          // und handleSelectFromCalendar die Logik übernimmt.
-          // onDateClick={onDateClick} // <<-- KANN ENTFERNT WERDEN!
+          eventAllow={(dropInfo) => {
+            const now = new Date();
+            return dropInfo.start > now; // Nur Verschiebung erlaubt, wenn neuer Start in Zukunft
+          }}
+          
 
           dayHeaderContent={(arg) => {
             const date = arg.date;
@@ -75,7 +77,9 @@ const CalendarComponent = ({
           slotMaxTime="22:00:00"
           allDaySlot={false}
           eventContent={(arg) => {
-            const { title, location } = arg.event.extendedProps;
+            const { title, location, staff_note, client_note } = arg.event.extendedProps;
+            const note = staff_note || client_note;
+          
             return (
               <div className="fc-event-custom">
                 <div className="event-name">{title || 'Termin'}</div>
@@ -83,6 +87,7 @@ const CalendarComponent = ({
               </div>
             );
           }}
+          
         />
     </div>
   );

@@ -1,47 +1,49 @@
-// src/components/EditableNoteField.jsx
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 
 const EditableNoteField = React.memo(({
   id,
-  initialContent,    // Der Inhalt, der im Nicht-Bearbeitungsmodus angezeigt wird
-  isEditing,         // Ist der Bearbeitungsmodus aktiv?
-  content,           // Der aktuelle, vom Benutzer eingegebene Inhalt (aus tempState des Parents)
-  onContentChange,   // Callback zum Aktualisieren des tempState im Parent
-  onSave,            // Callback zum Speichern der Notiz (wenn saveNote aufgerufen wird)
-  editorRef,         // Ref vom Parent (Dashboard)
-  onNoteSaved        // <--- NEUE PROP: Callback, der nach erfolgreichem Speichern aufgerufen wird
+  initialContent,
+  isEditing,
+  content,
+  onContentChange,
+  onSave,
+  onNoteSaved,
+  editorRef,
+  maxLength = 500,
+  showCharCount = true
 }) => {
   const innerRef = useRef(null);
+  const [charCount, setCharCount] = useState(0);
 
+  // ⚙️ Synchronisiere Editor-Inhalt mit props
   useEffect(() => {
     const el = innerRef.current;
-    if (el) {
-      if (isEditing) {
-        const safeContent = String(content || '');
-        // Setze den innerHTML nur, wenn er sich vom aktuellen 'content'-Prop unterscheidet
-        if (el.innerHTML !== safeContent) {
-          el.innerHTML = safeContent;
+    if (!el) return;
+
+    if (isEditing) {
+      const safeContent = String(content || '');
+      if (el.innerHTML !== safeContent) {
+        el.innerHTML = safeContent;
+      }
+
+      // Cursor ans Ende setzen
+      setTimeout(() => {
+        if (el === document.activeElement) {
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(el);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
         }
-        setTimeout(() => {
-          if (el === document.activeElement) {
-            const range = document.createRange();
-            const sel = window.getSelection();
-            range.selectNodeContents(el);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
-          }
-        }, 0);
-      } else {
-        // Im Anzeigemodus: Synchronisiere den innerHTML mit initialContent.
-        // Dies ist der kritische Teil, der sicherstellt, dass der neue, gespeicherte Inhalt angezeigt wird.
-        const safeInitialContent = String(initialContent || 'Keine Notiz vorhanden.');
-        if (el.innerHTML !== safeInitialContent) {
-          el.innerHTML = safeInitialContent;
-        }
+      }, 0);
+    } else {
+      const safeInitialContent = String(initialContent || 'Keine Notiz vorhanden.');
+      if (el.innerHTML !== safeInitialContent) {
+        el.innerHTML = safeInitialContent;
       }
     }
-  }, [isEditing, content, initialContent]); // initialContent ist eine wichtige Abhängigkeit
+  }, [isEditing, content, initialContent]);
 
   useEffect(() => {
     if (editorRef) {
@@ -50,42 +52,49 @@ const EditableNoteField = React.memo(({
   }, [editorRef]);
 
   const handleInput = (e) => {
-    const raw = e.currentTarget.innerHTML;
-    const cleaned = raw === '<br>' ? '' : raw;
+    let raw = e.currentTarget.innerHTML;
+    let cleaned = raw === '<br>' ? '' : raw;
+
+    if (maxLength && cleaned.length > maxLength) {
+      cleaned = cleaned.slice(0, maxLength);
+      e.currentTarget.innerHTML = cleaned;
+
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(e.currentTarget);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    setCharCount(cleaned.length);
     onContentChange(cleaned);
   };
-  
 
-  // WICHTIG: handleBlur sollte das Speichern nur auslösen,
-  // wenn der Benutzer den Fokus verliert und isEditing aktiv ist.
-  // Es ruft onSave auf und wartet auf die Fertigstellung, bevor onNoteSaved aufgerufen wird.
-  const handleBlur = async () => {
+  const handleBlur = () => {
     if (isEditing && onSave) {
-      // Stelle sicher, dass onSave (saveNote) aufgerufen wird und warte darauf.
-      // Der Rückgabewert von saveNote sollte true sein, wenn erfolgreich.
-      const saveSuccessful = await onSave(content);
-      if (saveSuccessful && onNoteSaved) {
-        onNoteSaved(); // Erst JETZT den temporären Inhalt leeren
-      }
+      onSave(content).then((success) => {
+        if (success && onNoteSaved) onNoteSaved();
+      });
     }
   };
 
   return (
-    <div
-      id={id}
-      ref={innerRef}
-      className={`note-editor ${isEditing ? 'editing' : 'view-only'}`}
-      contentEditable={isEditing}
-      suppressContentEditableWarning={true}
-      // dangeroulySetInnerHTML ist hier nur für die ERSTAUSLIEFERUNG im Anzeigemodus
-      // Der useEffect synchronisiert den Inhalt dynamisch.
-      dangerouslySetInnerHTML={
-        !isEditing
-          ? { __html: String(initialContent || 'Keine Notiz vorhanden.') }
-          : undefined
-      }
-      onInput={handleInput}
-    />
+    <div className="note-wrapper">
+      <div
+        id={id}
+        ref={innerRef}
+        className={`note-editor ${isEditing ? 'editing' : 'view-only'}`}
+        contentEditable={isEditing}
+        suppressContentEditableWarning={true}
+        onInput={handleInput}
+      />
+      {showCharCount && isEditing && (
+        <div className={`char-counter ${charCount >= maxLength ? 'limit-reached' : ''}`}>
+          {charCount} / {maxLength}
+        </div>
+      )}
+    </div>
   );
 });
 

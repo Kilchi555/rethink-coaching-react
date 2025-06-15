@@ -122,6 +122,16 @@
     cursor: pointer; /* Zeigt an, dass das Element anklickbar ist */
 
   }
+
+  /* Zukünftige Termine: grün */
+  .future-border {
+    border-left-color: green;
+  }
+
+  /* Vergangene Termine: optional grau oder gleich lassen */
+  .past-border {
+    border-left-color: #ccc;
+  }
   
   .appointment-item:hover {
     background-color: #e0e0e0; /* Leicht hellerer Hintergrund beim Überfahren mit der Maus */
@@ -647,6 +657,19 @@
 .fc .fc-day-today {
   background-color: #fff3cd;
 }
+
+.fc-event.past-appointment {
+  background-color: #ffcccc; /* Rot für vergangene Termine */
+  border-color: #ff0000;
+  color: #000;
+}
+
+.fc-event.past-appointment.has-note {
+  background-color: #cce0ff; /* Blau wenn Notiz vorhanden */
+  border-color: #3366ff;
+  color: #000;
+}
+
 
 /* Sticky Wochentags-Kopfzeile */
 .calendar-container .fc .fc-col-header {
@@ -1309,3 +1332,21 @@
     max-width: 90%;
   }
 }
+
+.note-wrapper {
+  position: relative;
+}
+
+.char-counter {
+  font-size: 0.75rem;
+  text-align: right;
+  margin-top: 4px;
+  opacity: 0.6;
+}
+
+.char-counter.limit-reached {
+  color: red;
+  font-weight: bold;
+  opacity: 1;
+}
+

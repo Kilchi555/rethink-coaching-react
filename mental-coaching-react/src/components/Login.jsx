@@ -12,6 +12,8 @@ function Login() {
   const { login, isLoggedIn, user, loading: authLoading } = useAuth(); 
   const navigate = useNavigate();
 
+  console.log('login-Funktion:', login);
+
   const isMounted = useRef(true); 
 
   useEffect(() => {

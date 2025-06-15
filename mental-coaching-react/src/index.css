@@ -16,6 +16,10 @@ p {
   font-size: clamp(1rem, 1.5vw, 2rem);
 }
 
+h3 {
+  margin-top: 20px;
+}
+
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.6;

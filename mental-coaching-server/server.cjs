@@ -459,11 +459,7 @@ app.post('/api/update-note', async (req, res) => {
         .replace(/&nbsp;/gi, '')
         .replace(/\s+/g, '')
         .trim();
-
-        if (!cleanedNote) {
-        console.log('Fehler: Notizinhalt ist leer oder nutzlos.');
-        return res.status(400).json({ error: 'Die Notiz darf nicht leer sein.' });
-        }
+        
 
   const userId = req.session.userId; // Annahme: userId ist in der Session verfügbar
 
@@ -573,10 +569,6 @@ app.post('/api/appointments/:appointmentId/note', async (req, res) => {
 
   if (!userId) {
     return res.status(401).json({ error: 'Nicht authentifiziert.' });
-  }
-
-  if (!clientNote) {
-    return res.status(400).json({ error: 'Die Notiz darf nicht leer sein.' });
   }
 
   try {
@@ -810,6 +802,7 @@ app.put('/api/appointments/:id', async (req, res) => { // Oder '/api/book-appoin
     RETURNING *;
   `, [start_time, end_time, location, title, appointmentId, staffId]);
   
+  console.log('Update Result:', result); // <-- Hier loggen, was die DB zurückgibt
 
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Termin nicht gefunden oder keine Berechtigung.' });

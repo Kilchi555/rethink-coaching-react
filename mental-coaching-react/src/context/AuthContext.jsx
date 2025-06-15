@@ -7,8 +7,10 @@ export const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null); 
   const [loading, setLoading] = useState(true); 
+  const [calendarAppointments, setCalendarAppointments] = useState([]);
   const [futureAppointments, setFutureAppointments] = useState([]);
   const [pastAppointments, setPastAppointments] = useState([]);
+
   const navigate = useNavigate();
 
   const isMounted = useRef(true); 
@@ -32,6 +34,7 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
+        console.log("✅ Daten aus /api/user:", data);
         setUser({
           id: data.id,
           email: data.email,
@@ -51,15 +54,11 @@ export const AuthProvider = ({ children }) => {
       } else {
         console.log('⚠️ AuthContext: Keine Benutzer-Session gefunden.');
         setUser(null);
-        setFutureAppointments([]); 
-        setPastAppointments([]);
       }
     } catch (error) {
       console.error('❌ AuthContext: Fehler bei der Benutzerprüfung:', error);
       if (isMounted.current) { 
         setUser(null);
-        setFutureAppointments([]);
-        setPastAppointments([]);
       }
     } finally {
       if (isMounted.current) { 
@@ -72,73 +71,74 @@ export const AuthProvider = ({ children }) => {
   // der die Termine lädt, um sicherzustellen, dass 'user' aktuell ist.
   const fetchAppointments = useCallback(async () => {
     console.log('📅 AuthContext: Lade Termine...');
+  
     try {
       if (!user) { 
         console.log('AuthContext: Kein User angemeldet, überspringe Terminladen.');
-        setFutureAppointments([]);
-        setPastAppointments([]);
         return;
       }
-
+  
+      const now = new Date();
+      let future = [];
+      let past = [];
+  
       if (user.role === 'client') {
         const [futureRes, pastRes] = await Promise.all([
           fetch('/api/future-appointments', { credentials: 'include' }),
           fetch('/api/past-appointments', { credentials: 'include' }),
         ]);
-
-        let futureAppointmentsRaw = [];
+  
         if (futureRes.ok) {
           const futureData = await futureRes.json();
-          // ANPASSUNG HIER: Nimm .listData oder das direkte Array
-          futureAppointmentsRaw = futureData.listData || futureData; 
-          console.log('Kunde: Rohdaten zukünftiger Termine:', futureAppointmentsRaw); 
+          future = (futureData.listData || futureData).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+          console.log('Kunde: zukünftige Termine:', future); 
         } else {
           console.error('Fehler beim Laden zukünftiger Termine (Kunde):', futureRes.status, futureRes.statusText);
         }
-
-        let pastAppointmentsRaw = [];
+  
         if (pastRes.ok) {
           const pastData = await pastRes.json();
-          // ANPASSUNG HIER: Nimm .listData oder das direkte Array
-          pastAppointmentsRaw = pastData.listData || pastData; 
-          console.log('Kunde: Rohdaten vergangener Termine:', pastAppointmentsRaw); 
+          past = (pastData.listData || pastData).sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+          console.log('Kunde: vergangene Termine:', past); 
         } else {
           console.error('Fehler beim Laden vergangener Termine (Kunde):', pastRes.status, pastRes.statusText);
         }
-
-        if (isMounted.current) {
-          setFutureAppointments(futureAppointmentsRaw);
-          setPastAppointments(pastAppointmentsRaw);
-        }
+  
       } else if (user.role === 'staff' || user.role === 'admin') {
         const response = await fetch('/api/staff/appointments', { credentials: 'include' });
         if (response.ok) {
-          const allStaffAppointments = await response.json();
-          const now = new Date();
-          const future = allStaffAppointments.filter(app => new Date(app.start_time) >= now);
-          const past = allStaffAppointments.filter(app => new Date(app.start_time) < now);
-
-          if (isMounted.current) {
-            setFutureAppointments(future);
-            setPastAppointments(past);
-          }
+          const data = await response.json();
+          future = data
+            .filter(app => new Date(app.start_time) >= now)
+            .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+          past = data
+            .filter(app => new Date(app.start_time) < now)
+            .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+          console.log('Mitarbeiter: zukünftige & vergangene Termine geladen.');
         } else {
           console.error('Fehler beim Laden der Mitarbeiter-Termine:', response.status, response.statusText);
-          if (isMounted.current) {
-            setFutureAppointments([]);
-            setPastAppointments([]);
-          }
         }
       }
-
+  
+      const combinedAppointments = [...future, ...past];
+  
+      if (isMounted.current) {
+        setFutureAppointments(future);
+        setPastAppointments(past);
+        setCalendarAppointments(combinedAppointments);
+      }
+  
     } catch (err) {
       console.error('❌ AuthContext: Netzwerkfehler beim Laden der Termine:', err);
       if (isMounted.current) {
         setFutureAppointments([]);
         setPastAppointments([]);
+        setCalendarAppointments([]);
       }
     }
-  }, [user, isMounted]); // fetchAppointments hängt jetzt vom 'user'-Objekt ab
+  }, [user, isMounted, setCalendarAppointments]);
+  
+  
 
   // Führe checkUser einmalig beim Mounten des AuthProviders aus
   useEffect(() => {
@@ -147,15 +147,15 @@ export const AuthProvider = ({ children }) => {
 
   // Führe fetchAppointments aus, wenn der Benutzerstatus sich ändert und er eingeloggt ist
   useEffect(() => {
-    if (user && !loading) { // Nur Termine laden, wenn user gesetzt und die initiale Ladephase beendet ist
+    if (user && !loading) {
       console.log('AuthContext: User oder Ladezustand geändert, lade Termine neu...');
       fetchAppointments();
     } else if (!user && !loading) {
-      // Wenn der User null ist und nicht mehr geladen wird (z.B. nach Logout), Termine leeren
-      setFutureAppointments([]);
-      setPastAppointments([]);
+      console.log('AuthContext: Kein Benutzer aktiv, leere Kalendertermine...');
+      setCalendarAppointments([]);
     }
   }, [user, loading, fetchAppointments]);
+  
 
 
   // 🔐 Login
@@ -188,13 +188,12 @@ export const AuthProvider = ({ children }) => {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
-
+  
       if (!isMounted.current) return; 
-
+  
       if (response.ok) {
         setUser(null);
-        setFutureAppointments([]);
-        setPastAppointments([]);
+        setCalendarAppointments([]); // ✅ Termine leeren
         console.log('👋 AuthContext: Erfolgreich ausgeloggt.');
       } else {
         console.error('❌ AuthContext: Logout auf dem Server fehlgeschlagen.');
@@ -204,16 +203,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
   
+  
   const authContextValue = {
     user,
     isLoggedIn: !!user,
-    loading, 
+    loading,
     login,
     logout,
-    futureAppointments, 
-    pastAppointments,   
-    fetchAppointments,  
+    calendarAppointments,
+    setCalendarAppointments,
+    fetchAppointments,
+    authProps: { /* falls du mehr brauchst */ }
   };
+  
 
   console.log('ℹ️ AuthContext: Aktueller Loading-Status:', loading); 
   console.log('ℹ️ AuthContext: Aktueller User-Status:', user); 
@@ -223,10 +225,24 @@ export const AuthProvider = ({ children }) => {
   }
 
   return (
-    <AuthContext.Provider value={authContextValue}>
+    <AuthContext.Provider value={{
+      user,
+      isLoggedIn: !!user,
+      loading,
+      logout,
+      login,
+      calendarAppointments,
+      setCalendarAppointments,
+      futureAppointments,
+      setFutureAppointments, // <-- das fehlt bei dir!
+      pastAppointments,
+      setPastAppointments,
+      fetchAppointments,
+      authProps: { /* falls du mehr brauchst */ }
+    }}>
       {children}
     </AuthContext.Provider>
-  );
+  );  
 };
 
 export const useAuth = () => {

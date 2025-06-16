@@ -65,14 +65,12 @@ export default function AppointmentNotes({
                 ) : (
                 <>
                     {/* 📄 Lesemodus – Notiz anzeigen, falls vorhanden */}
-                    {appointment.client_note ? (
-                    <div
-                        className="note-text"
-                        dangerouslySetInnerHTML={{ __html: appointment.client_note }}
-                    />
-                    ) : (
-                    <div className="note-text">Keine Notiz vorhanden.</div>
-                    )}
+                    <div className="note-text" dangerouslySetInnerHTML={{
+                    __html:
+                        tempClientNoteContent?.[appointment.id] ??
+                        appointment.client_note ??
+                        'Keine Notiz vorhanden.'
+                    }} />
 
                     <button
                     className="note-action-button client-note-button"
@@ -97,13 +95,14 @@ export default function AppointmentNotes({
 
       </div>
 
-      {/* Staff-Notiz-Bereich */}
-      {(user?.role === 'staff' || user?.role === 'admin') && (
-  <div className="note-container staff-note-area">
-    <h4>Notiz des Coaches:</h4>
-        {isEditingStaffNote ? (
-        <>
-           <EditableNoteField
+      <div className="note-container staff-note-area">
+        <h4>Notiz des Coaches:</h4>
+
+        {user?.role === 'staff' || user?.role === 'admin' ? (
+            isEditingStaffNote ? (
+            // ✏️ Editiermodus
+            <>
+                <EditableNoteField
                 initialContent={tempStaffNoteContent?.[appointment.id] ?? appointment.staff_note ?? ''}
                 isEditing={true}
                 content={tempStaffNoteContent?.[appointment.id] ?? appointment.staff_note ?? ''}
@@ -117,53 +116,62 @@ export default function AppointmentNotes({
                 maxLength={500}
                 />
 
-            <button
-            className="note-action-button staff-note-button"
-            onClick={async (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                const el = staffNoteEditorRef.current;
-                const html = el?.innerHTML || '';
-                const saved = await saveNote(appointment.id, 'staff', html, true);
-                if (saved) {
-                console.log('✅ Staff-Notiz gespeichert');
-                setTempStaffNoteContent(prev => ({ ...prev, [appointment.id]: html }));
-                if (user?.role === 'staff') setShouldLoadStats?.(true);
-                }
-            }}
-            >
-            Staff-Notiz speichern
-            </button>
-        </>
+                <button
+                className="note-action-button staff-note-button"
+                onClick={async (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    const el = staffNoteEditorRef.current;
+                    const html = el?.innerHTML || '';
+                    const saved = await saveNote(appointment.id, 'staff', html, true);
+                    if (saved) {
+                    console.log('✅ Staff-Notiz gespeichert');
+                    setTempStaffNoteContent(prev => ({ ...prev, [appointment.id]: html }));
+                    if (user?.role === 'staff') setShouldLoadStats?.(true);
+                    }
+                }}
+                >
+                Staff-Notiz speichern
+                </button>
+            </>
+            ) : (
+            // 📄 Lesemodus mit Bearbeiten-Button
+            <>
+                <div
+                className="note-text"
+                dangerouslySetInnerHTML={{
+                    __html:
+                    tempStaffNoteContent?.[appointment.id] ??
+                    appointment.staff_note ??
+                    'Keine Notiz vorhanden.',
+                }}
+                />
+                <button
+                className="note-action-button staff-note-button"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleEditNoteClick(appointment.id, 'staff');
+                }}
+                >
+                Staff-Notiz bearbeiten
+                </button>
+            </>
+            )
         ) : (
-        <>
-            {/* 📄 Lesemodus – Notiz anzeigen, falls vorhanden */}
-            {(() => {
-                const currentNote =
-                    calendarAppointments.find(a => a.id === appointment.id)?.staff_note ||
-                    '';
-
-                return currentNote ? (
-                    <div className="note-text" dangerouslySetInnerHTML={{ __html: currentNote }} />
-                ) : (
-                    <div className="note-text">Keine Notiz vorhanden.</div>
-                );
-                })()}
-
-            <button
-            className="note-action-button staff-note-button"
-            onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                handleEditNoteClick(appointment.id, 'staff');
+            // 🔒 Nur Lesemodus für Clients
+            <div
+            className="note-text"
+            dangerouslySetInnerHTML={{
+                __html:
+                tempStaffNoteContent?.[appointment.id] ??
+                appointment.staff_note ??
+                'Keine Notiz vorhanden.',
             }}
-            >
-            Staff-Notiz bearbeiten
-            </button>
-        </>
+            />
         )}
-  </div>
-)}
+        </div>
+
 
     </div>
   );

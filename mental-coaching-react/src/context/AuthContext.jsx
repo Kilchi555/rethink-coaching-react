@@ -22,6 +22,7 @@ export const AuthProvider = ({ children }) => {
 
   const checkUser = async () => {
     console.log('🔄 AuthContext: Führe initiale Benutzerprüfung durch...');
+
     setLoading(true); 
     try {
       const response = await fetch('/api/user', {
@@ -49,8 +50,15 @@ export const AuthProvider = ({ children }) => {
           phone: data.phone
         });
         console.log('✅ AuthContext: Benutzer-Session gefunden.');
-        // Termine laden, nachdem der Benutzer gesetzt wurde
-        // (fetchAppointments wird jetzt explizit den 'user'-State lesen)
+        // ✅ Session setzen
+        req.session.userId = user.id;
+        req.session.role = user.role;
+        req.session.userName = user.first_name;
+
+        // ✅ LOGS direkt danach:
+        console.log('🔐 Login erfolgreich – Session wird gesetzt:');
+        console.log('req.session.userId:', req.session.userId);
+        console.log('req.session:', req.session);
       } else {
         console.log('⚠️ AuthContext: Keine Benutzer-Session gefunden.');
         setUser(null);
@@ -212,6 +220,10 @@ export const AuthProvider = ({ children }) => {
     logout,
     calendarAppointments,
     setCalendarAppointments,
+    futureAppointments,
+    setFutureAppointments, // ✅ hinzugefügt
+    pastAppointments,
+    setPastAppointments,
     fetchAppointments,
     authProps: { /* falls du mehr brauchst */ }
   };

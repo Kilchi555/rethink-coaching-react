@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef, useCallback, useContext } from 'rea
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Dashboard.css';
-import CalendarComponent from './CalendarComponent';
-import AppointmentModal from './AppointmentModal'; // <<-- NEU: Dein umbenanntes Modal
-import EditableNoteField from './EditableNoteField'; // <-- NEU: Importiere die neue Komponente
-import AppointmentNotes from './AppointmentNotes';
+import CalendarComponent from '../components/CalendarComponent';
+import AppointmentModal from '../components/AppointmentModal'; // <<-- NEU: Dein umbenanntes Modal
+import EditableNoteField from '../components/EditableNoteField'; // <-- NEU: Importiere die neue Komponente
+import AppointmentNotes from '../components/AppointmentNotes';
+import StaffDashboard from '../components/StaffDashboard';
 
 
 
@@ -30,6 +31,8 @@ const Dashboard = () => {
     authProps,
     futureAppointments = [],
     pastAppointments = [],
+    setFutureAppointments,
+    setPastAppointments
   } = useAuth();
   
   const navigate = useNavigate();
@@ -46,7 +49,7 @@ const Dashboard = () => {
 
   const [isCalendarModalOpen, setIsCalendarModalOpen] = useState(false);
   const [isAppointmentDetailsModalOpen, setIsAppointmentDetailsModalOpen] = useState(false);
-  const [appointment, setappointment] = useState(null);
+  const [appointment, setAppointment] = useState(null);
 
   const [editingNoteIds, setEditingNoteIds] = useState({});
   const [expandedAppointmentIds, setExpandedAppointmentIds] = useState({});
@@ -526,7 +529,7 @@ const Dashboard = () => {
       console.log(`📅 Termin ${eventId} geklickt – isPast:`, isPast);
 
       if (isPast) {
-        setappointment(appointment);
+        setAppointment(appointment);
         setExpandedAppointmentIds(prev => ({ ...prev, [appointment.id]: true }));
       
         if (user?.role === 'staff' || user?.role === 'admin') {
@@ -542,7 +545,7 @@ const Dashboard = () => {
         // 👉 Zukunftstermin – wie gehabt: Modal öffnen
         if (user?.role === 'staff' || user?.role === 'admin') {
           console.log('*** Termin aus Kalender (ZUKUNFT - STAFF/ADMIN):', appointment);
-          setappointment(appointment);
+          setAppointment(appointment);
 
           setInitialEventDataForModal({
             id: appointment.id,
@@ -557,14 +560,14 @@ const Dashboard = () => {
         } else {
           // Kunde – Zukunftstermin Detailmodal öffnen
           console.log('*** Termin aus Kalender (ZUKUNFT - CLIENT):', appointment);
-          setappointment(appointment);
+          setAppointment(appointment);
           setIsAppointmentDetailsModalOpen(true);
         }
       }
     }, [
       user,
       calendarAppointments,
-      setappointment,
+      setAppointment,
       setIsAppointmentDetailsModalOpen,
       setIsAppointmentModalOpen,
       setInitialEventDataForModal,
@@ -852,7 +855,7 @@ const Dashboard = () => {
 
 
     const handleAppointmentClick = () => {
-      setappointment(appointment);
+      setAppointment(appointment);
     
       setExpandedAppointmentIds(prev => ({
         ...prev,
@@ -945,7 +948,7 @@ const Dashboard = () => {
         console.log(`⚠️ saveNote wurde aufgerufen für Termin ${appointmentId} [${type}]`);
         console.log('1. noteContentToSave (Editor-Inhalt):', noteContentToSave);
       
-        // ✨ LEER-VALIDIERUNG ✨
+        // ✨ Leere Notiz verhindern
         const cleanedNote = (noteContentToSave || '')
           .replace(/<br\s*\/?>/gi, '')
           .replace(/&nbsp;/gi, '')
@@ -957,85 +960,92 @@ const Dashboard = () => {
           return false;
         }
       
-        // 🔐 Schutz: Clients dürfen keine staff-Notizen ändern
         if (user.role === 'client' && type === 'staff') {
           console.warn('⛔ Client darf keine Staff-Notiz bearbeiten.');
           alert('Sie sind nicht berechtigt, Mitarbeiter-Notizen zu bearbeiten.');
           return false;
         }
-              
-        // 🔁 Originalzustände sichern für Rollback
+      
+        // 🔁 Rollback-Backup
         const originalAppointments = [...calendarAppointments.map(a => ({ ...a }))];
         const originalAppointment = appointment ? { ...appointment } : null;
         const originalTempClientNoteContent = tempClientNoteContent;
         const originalTempStaffNoteContent = tempStaffNoteContent;
         const originalEditingNoteIds = { ...editingNoteIds };
-
-        // 🔄 Optimistisches UI-Update (Kopie)
+      
+        // ✅ Optimistisches UI-Update
         const updatedCalendarAppointments = calendarAppointments.map(appt =>
           appt.id === appointmentId
             ? {
                 ...appt,
                 [type === 'client' ? 'client_note' : 'staff_note']: noteContentToSave,
               }
-            : { ...appt } // <- wichtig: immer kopieren
+            : { ...appt }
         );
-
+      
         setCalendarAppointments(updatedCalendarAppointments);
-
-        // 🆕 Einzeltermin aktualisieren (Kopie!)
+      
+        // 🧠 Einzeltermin im Modal aktualisieren
         const updatedSingleAppointment = updatedCalendarAppointments.find(a => a.id === appointmentId);
         if (updatedSingleAppointment) {
-          setappointment({ ...updatedSingleAppointment }); // <- neue Kopie setzen!
+          setAppointment({ ...updatedSingleAppointment }); 
           console.log('✅ Termin erfolgreich optimistisch aktualisiert:', updatedSingleAppointment);
         } else {
           console.warn('⚠️ Termin wurde im State nicht gefunden nach Update.');
         }
-
-        // Optional: Bearbeitungsmodus verlassen
+      
+        // ✨ Optional: Editor-Content updaten
+        if (type === 'client') {
+          setTempClientNoteContent(prev => ({ ...prev, [appointmentId]: noteContentToSave }));
+        }
+        if (type === 'staff') {
+          setTempStaffNoteContent(prev => ({ ...prev, [appointmentId]: noteContentToSave }));
+        }
+      
+        // 🔚 Bearbeitungsmodus verlassen
         if (exitEditMode === true) {
           setEditingNoteIds(prev => ({ ...prev, [appointmentId]: false }));
         }
-
-        // ✨ Erfolgsmeldung anzeigen
+      
+        // ✨ Feedback
         setShowNoteSavedMessage(true);
         if (noteSavedTimeoutRef.current) clearTimeout(noteSavedTimeoutRef.current);
         noteSavedTimeoutRef.current = setTimeout(() => setShowNoteSavedMessage(false), 3000);
-
-        // 🔁 Backend speichern
+      
+        // 📡 Speichern an Backend
         const requestBody = {
           appointmentId,
           note: noteContentToSave,
           type,
         };
-
+      
         console.log('📡 Sende an Backend:', requestBody);
-
+      
         try {
           const response = await fetch('/api/update-note', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
           });
-
+      
           if (!response.ok) {
             const errorText = await response.text();
             console.error('❌ Backend-Fehler:', response.status, errorText);
             throw new Error(`HTTP ${response.status} – ${errorText}`);
           }
-
+      
           const responseData = await response.json();
           console.log('✅ Backend-Antwort:', responseData);
           return true;
-
+      
         } catch (error) {
           console.error(`❌ Fehler beim Speichern der ${type}-Notiz:`, error);
           alert(`Fehler beim Speichern Ihrer ${type}-Notiz. Bitte versuchen Sie es erneut. Details: ${error.message}`);
-
-          // 🔁 Rollback bei Fehler
+      
+          // 🔁 Rollback
           setCalendarAppointments(originalAppointments);
           if (originalAppointment) {
-            setappointment({ ...originalAppointment });
+            setAppointment({ ...originalAppointment });
             if (type === 'client') setTempClientNoteContent(originalTempClientNoteContent);
             if (type === 'staff') setTempStaffNoteContent(originalTempStaffNoteContent);
           }
@@ -1045,17 +1055,17 @@ const Dashboard = () => {
         } finally {
           console.log('--- END saveNote ---');
         }
-
       
       }, [
         user,
         calendarAppointments, setCalendarAppointments,
-        appointment, setappointment,
+        appointment, setAppointment,
         tempClientNoteContent, setTempClientNoteContent,
         tempStaffNoteContent, setTempStaffNoteContent,
         setEditingNoteIds, editingNoteIds,
         setShowNoteSavedMessage, noteSavedTimeoutRef
       ]);
+      
       
 
   const handleDatesSet = useCallback((arg) => {
@@ -1084,6 +1094,55 @@ const Dashboard = () => {
     );
   }
 
+  const handleDelete = async (appointment) => {
+    const start = new Date(appointment.start);
+    const now = new Date();
+    const timeDiff = start - now;
+  
+    const lessThan24h = timeDiff < 24 * 60 * 60 * 1000;
+    const isFuture = timeDiff > 0;
+  
+    if (!user || !user.role) {
+      console.warn('❗ Kein Benutzer oder keine Rolle vorhanden');
+      return;
+    }
+  
+    const isClient = user.role === 'customer';
+    const isPrivileged = user.role === 'admin' || user.role === 'staff';
+  
+    // 🛑 Kunden dürfen <24h nicht mehr löschen
+    if (isClient && isFuture && lessThan24h) {
+      window.alert(
+        '⚠️ Die Absage ist zu kurzfristig und zu 100 % kostenpflichtig. Der Termin kann nicht mehr online storniert werden.'
+      );
+      return;
+    }
+  
+    // ✅ Normale Bestätigung
+    const confirmed = window.confirm('Willst du diesen Termin wirklich löschen?');
+    if (!confirmed) return;
+  
+    try {
+      const res = await fetch(`/api/appointments/${appointment.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+  
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Fehler beim Löschen');
+  
+      setFutureAppointments(prev => prev.filter(a => a.id !== appointment.id));
+      setCalendarAppointments(prev => prev.filter(a => a.id !== appointment.id)); // ✅ wichtig!
+      setIsAppointmentDetailsModalOpen(false);
+      console.log('✅ Termin gelöscht:', appointment.id);
+  
+    } catch (err) {
+      console.error('Fehler beim Löschen:', err);
+    }
+  };
+  
+  
+
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -1102,22 +1161,24 @@ const Dashboard = () => {
       </header>
 
       <main>
-        {user?.role === 'admin' && (
-          <section id="admin-section" className="dashboard-section">
-            <h2>Admin-Bereich</h2>
-            {isAdminLoading ? (
-              <LoadingSpinner message="Lade Admin-Daten..." />
-            ) : (
-              <p id="admin-statistics">
-                {adminStats ? `Gesamtzahl der Nutzer: ${adminStats.totalUsers}` : 'Fehler beim Laden der Admin-Daten.'}
-              </p>
-            )}
-          </section>
-        )}
+
+      {user?.role === 'admin' && (
+        <Link to="/admin">⚙️ Admin-Einstellungen</Link>
+      )}
 
         {user?.role === 'staff' && (
           <section id="staff-section" className="dashboard-section">
-            <h2>Mitarbeiter-Bereich</h2>
+            <div className="welcome-container">
+              <h2>Hallo {user?.first_name?.charAt(0).toUpperCase() + user?.first_name?.slice(1) || 'Benutzer'}!</h2>
+              <button
+                  id="open-calendar-button"
+                  className="open-calendar-button"
+                  onClick={() => setIsCalendarModalOpen(true)}
+                >
+                  📅 Kalender öffnen
+              </button>
+            </div>
+
             {/* Die Lade-Anzeige für Mitarbeiter-spezifische Daten wie Statistiken oder Kundenliste */}
             {isstaffLoading ? (
               <LoadingSpinner message="Lade Mitarbeiter-Daten..." />
@@ -1278,14 +1339,6 @@ const Dashboard = () => {
                 )}
             {/* Ende des Kunden-Details-Modals */}
 
-                {/* Der "Kalender öffnen"-Button, falls er weiterhin ein separates Modal öffnen soll */}
-                <button
-                  id="open-calendar-button"
-                  className="open-calendar-button"
-                  onClick={() => setIsCalendarModalOpen(true)}
-                >
-                  📅 Kalender öffnen
-                </button>
 
                 {/* --- NEUER BEREICH FÜR TERMINE (ANALOG ZUM KUNDENBEREICH) --- */}
                 <div id="staff-appointments">
@@ -1303,7 +1356,7 @@ const Dashboard = () => {
                           <>
                             {futureAppointments.length > 0 && (
                               <div className="appointment-group">
-                                <h3>Zukünftige Termine (Ihre Coach-Termine)</h3>
+                                <h3>Zukünftige Termine</h3>
                                 {futureAppointments.map(app => renderAppointmentItem(app, 'future'))}
                               </div>
                             )}
@@ -1329,15 +1382,17 @@ const Dashboard = () => {
 
         {user?.role === 'client' && (
           <section id="client-section" className="dashboard-section">
-            <h2>Kundenbereich</h2>
-            <button
-              id="open-calendar-button"
-              className="open-calendar-button"
-              onClick={() => setIsCalendarModalOpen(true)}
-            >
-              Kalender öffnen
-            </button>
-
+            <div className='welcome-container'>
+                <h2>Hallo {user?.first_name?.charAt(0).toUpperCase() + user?.first_name?.slice(1) || 'Benutzer'}!</h2>
+                <button
+                  id="open-calendar-button"
+                  className="open-calendar-button"
+                  onClick={() => setIsCalendarModalOpen(true)}
+                >
+                  Kalender öffnen
+                </button>
+            </div>
+            
             <div id="client-appointments">
                 {authLoading ? (
                   <LoadingSpinner message="Lade Ihre Termine..." />
@@ -1433,6 +1488,7 @@ const Dashboard = () => {
                   className="copy-button-inline"
                   title="Termin kopieren"
                 >📋 Kopieren</button>
+                <button onClick={() => handleDelete(appointment)}>🗑️ Termin löschen</button>
               </div>
             </div>
           </div>

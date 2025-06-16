@@ -1,5 +1,6 @@
   h2, h3 {
     font-size: 1.5rem;
+    margin-top: 1.5rem;
     margin-bottom: 1.5rem;
     color: #2c3e50;
     text-align: center;
@@ -8,6 +9,7 @@
   
   h4 {
     font-size: 1.2rem;
+    margin-top: 0.5rem;
     margin-bottom: 0.5rem;
     text-align: left;
   }
@@ -134,12 +136,8 @@
   }
   
   .appointment-item:hover {
-    background-color: #e0e0e0; /* Leicht hellerer Hintergrund beim Überfahren mit der Maus */
-    transform: perspective(800px) translateZ(8px) scale(1.01);
-    box-shadow:
-      0 4px 8px rgba(0, 0, 0, 0.15),
-      0 6px 20px rgba(0, 0, 0, 0.1);
-    z-index: 5;
+    transform: translateY(-3px); /* Karte hebt sich leicht an */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); /* Schatten wird stärker */
   } 
   
   .appointment-item strong {
@@ -508,6 +506,15 @@
     /* Optional: Style für den Bereich ohne zukünftige Termine */
     margin-bottom: 20px; /* Beispiel: etwas Abstand nach unten */
   }
+
+  .welcome-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;     /* Horizontal zentriert */
+    justify-content: center; /* Vertikal zentriert */
+    text-align: center;
+    gap: 1rem;               /* Abstand zwischen Titel und Button */
+  }
   
   /* Stil für den "Termine buchen"-Button */
   .open-calendar-button {
@@ -526,8 +533,9 @@
   }
   
   .open-calendar-button:hover {
-    background-color: #1e7e34; /* Dunklerer Grünton bei Hover */
-    transform: scale(1.05);
+    transform: translateY(-3px); /* Karte hebt sich leicht an */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); /* Schatten wird stärker */
+    background-color: #208738; /* Ein schöner Grünton für "buchen" */
   }
   
   .open-calendar-button:active {
@@ -781,6 +789,7 @@
   display: flex;
   justify-content: center;
   margin-top: 1.5rem;
+  gap: 1rem; /* 🔥 DAS sorgt für Abstand */
 }
 
 .button-row button {
@@ -794,6 +803,22 @@
 
 .button-row button:hover {
   background-color: #0056b3; /* dunkleres Blau */
+}
+
+.copy-button-inline {
+  background-color: #5cb85c; /* Ein angenehmes Grün */
+  color: white;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9em;
+  margin-left: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.copy-button-inline:hover {
+  background-color: #4cae4c;
 }
 
 .close-button {
@@ -869,21 +894,6 @@
   color: red;
   margin: -0.75rem 0 0.75rem;
   font-size: 12px;
-}
-
-.button-row {
-  display: flex;
-  justify-content: center;
-  gap: 1rem; /* 🔥 DAS sorgt für Abstand */
-  margin-top: 1rem;
-}
-
-.button-row button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  font-size: 14px;
-  cursor: pointer;
 }
 
 .cancel-button {
@@ -1021,22 +1031,6 @@
     text-overflow: unset;        /* ⬅️ Keine ... */
     word-wrap: break-word;       /* ⬅️ Längere Wörter umbrechen */
     overflow: hidden;
-  }
-
-  .copy-button-inline {
-    background-color: #5cb85c; /* Ein angenehmes Grün */
-    color: white;
-    padding: 5px 10px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.9em;
-    margin-left: 10px;
-    transition: background-color 0.2s ease;
-  }
-  
-  .copy-button-inline:hover {
-    background-color: #4cae4c;
   }
 
     /* Stile für den Hinweis zum Ein-/Ausklappen der Notizen */

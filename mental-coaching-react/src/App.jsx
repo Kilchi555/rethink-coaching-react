@@ -20,8 +20,9 @@ import ProtectedRoute from './components/ProtectedRoute'; // Wichtig: Die von un
 
 // NEU: Nur das zentrale Dashboard importieren und NICHT lazy laden,
 // da es alle Rollen abdeckt und oft direkt benötigt wird.
-import Dashboard from './components/Dashboard'; 
+import Dashboard from './pages/Dashboard'; 
 import Register from './components/Register';
+import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
   const location = useLocation();
@@ -85,7 +86,7 @@ function App() {
             path="/admin"
             element={
               <ProtectedRoute requiredRole="admin">
-                <Dashboard /> {/* Hier das zentrale Dashboard verwenden */}
+                <AdminDashboard /> {/* Hier das zentrale Dashboard verwenden */}
               </ProtectedRoute>
             }
           />

@@ -10,9 +10,12 @@ const cors = require('cors');
 const adminRoutes = require('./routes/adminRoutes');
 const clientRoutes = require('./routes/clientRoutes');
 const staffRoutes = require('./routes/staffRoutes');
+const { getSetting, setSetting } = require('./db/settings'); // Pfad ggf. anpassen
 
 const app = express();
 const port = process.env.PORT || 3000;
+const db = require('./db'); 
+console.log('DB-Objekt:', db);
 
 // Datenbankverbindung
 const pool = new Pool({
@@ -145,8 +148,20 @@ app.post('/api/login', async (req, res) => {
       console.log('Login erfolgreich. Session-ID gesetzt fur Benutzer-ID:', user.id);
       console.log('Session-Inhalt nach Login (NACH KORREKTUR):', req.session); // VERIFY THIS LOG IN YOUR TERMINAL!
 
-      return res.status(200).json({ message: 'Login erfolgreich!', userId: user.id, email: user.email, role: user.role });
-    } else {
+      return res.status(200).json({
+        message: 'Login erfolgreich!',
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        street: user.street,
+        street_nr: user.street_nr,
+        zip: user.zip,
+        city: user.city,
+        phone: user.phone
+      });
+          } else {
       console.log('Fehler: Passwort stimmt nicht uberein fur Benutzer-ID:', user.id);
       return res.status(401).json({ error: 'Ungultige Anmeldeinformationen.' });
     }
@@ -746,6 +761,91 @@ const isAdmin = (req, res, next) => {
   console.log('❌ Access denied: Admin role required. Current session:', req.session);
   return res.status(403).json({ error: 'Admin only' });
 };
+
+// DELETE /api/appointments/:id
+app.delete('/api/appointments/:id', async (req, res) => {
+  const appointmentId = req.params.id;
+
+  const user = {
+    id: req.session.userId,
+    role: req.session.role,
+    name: req.session.userName // optional
+  };
+
+  if (!user.id || !user.role) {
+    return res.status(401).json({ error: 'Nicht authentifiziert.' });
+  }
+
+  try {
+    const result = await db.query('SELECT * FROM appointments WHERE id = $1', [appointmentId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Termin nicht gefunden' });
+    }
+
+    const appointment = result.rows[0];
+    console.log('DEBUG Termin-Daten:', appointment);
+    
+    // ✅ Zeitpunkt-Vergleich korrekt initialisieren
+    const now = new Date();
+    const startTime = new Date(appointment.start_time);
+    const timeDiff = startTime - now;
+    const isFuture = timeDiff > 0;
+    
+
+    const isClient = user.role === 'customer';
+    const isPrivileged = user.role === 'admin' || user.role === 'staff';
+
+    // 🔄 NEU: Dynamische Stundenanzahl aus DB holen
+    const cancelLimit = parseInt(await getSetting('cancel_limit_hours') || '24', 10);
+    const lessThanLimit = timeDiff < cancelLimit * 60 * 60 * 1000;
+
+    // ❌ Kunden dürfen nicht <Xh vorher absagen
+    if (isClient && isFuture && lessThanLimit) {
+      return res.status(403).json({
+        error: `Termin kann nicht mehr gelöscht werden. Stornofrist: ${cancelLimit} Stunden.`,
+      });
+    }
+
+    // ❌ Niemand darf vergangene Termine löschen, außer Admin/Staff
+    if (!isFuture && !isPrivileged) {
+      return res.status(403).json({ error: 'Vergangene Termine können nicht gelöscht werden.' });
+    }
+
+    await db.query('DELETE FROM appointments WHERE id = $1', [appointmentId]);
+    return res.json({ message: 'Termin erfolgreich gelöscht' });
+
+  } catch (err) {
+    console.error('Fehler beim Löschen:', err);
+    return res.status(500).json({ error: 'Serverfehler beim Löschen' });
+  }
+});
+
+// GET: aktuelle Stunden holen
+app.get('/api/settings/cancel_limit_hours', async (req, res) => {
+  const value = await getSetting('cancel_limit_hours');
+  if (value) {
+    res.json({ value });
+  } else {
+    res.status(404).json({ error: 'Einstellung nicht gefunden' });
+  }
+});
+
+// POST: neue Stunden speichern
+app.post('/api/settings/cancel_limit_hours', async (req, res) => {
+  const user = req.session.user;
+  if (!user || user.role !== 'admin') {
+    return res.status(403).json({ error: 'Nur Admins dürfen das ändern.' });
+  }
+
+  const { value } = req.body;
+  if (!value || isNaN(parseInt(value))) {
+    return res.status(400).json({ error: 'Ungültiger Wert.' });
+  }
+
+  await setSetting('cancel_limit_hours', value);
+  res.json({ message: 'Wert gespeichert' });
+});
+
 
 // Fuge diesen Handler zu deinem Express-Server hinzu
 app.post('/api/logout', (req, res) => {

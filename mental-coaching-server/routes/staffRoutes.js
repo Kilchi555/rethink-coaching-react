@@ -179,5 +179,73 @@ router.get('/my-clients', async (req, res) => {
   }
 });
 
+router.get('/locations', async (req, res) => {
+  const staffId = req.session.userId;
+
+  if (!staffId || req.session.role !== 'staff') {
+    return res.status(403).json({ error: 'Nur Staff kann Orte verwalten.' });
+  }
+
+  try {
+    const result = await pool.query(
+      'SELECT id, location FROM staff_locations WHERE staff_id = $1 ORDER BY location ASC',
+      [staffId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler beim Laden der Orte:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Orte' });
+  }
+});
+
+router.post('/locations', async (req, res) => {
+  const staffId = req.session.userId;
+  const { location } = req.body;
+
+  if (!staffId || req.session.role !== 'staff') {
+    return res.status(403).json({ error: 'Nur Staff kann Orte verwalten.' });
+  }
+
+  if (!location || location.trim() === '') {
+    return res.status(400).json({ error: 'Ort darf nicht leer sein.' });
+  }
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO staff_locations (staff_id, location) VALUES ($1, $2) RETURNING id, location',
+      [staffId, location.trim()]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Fehler beim Hinzufügen des Ortes:', err);
+    res.status(500).json({ error: 'Fehler beim Hinzufügen des Ortes' });
+  }
+});
+
+router.delete('/locations/:id', async (req, res) => {
+  const staffId = req.session.userId;
+  const locationId = req.params.id;
+
+  if (!staffId || req.session.role !== 'staff') {
+    return res.status(403).json({ error: 'Nicht autorisiert.' });
+  }
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM staff_locations WHERE id = $1 AND staff_id = $2',
+      [locationId, staffId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Ort nicht gefunden oder nicht autorisiert.' });
+    }
+
+    res.status(200).json({ message: 'Ort gelöscht.' });
+  } catch (err) {
+    console.error('Fehler beim Löschen des Ortes:', err);
+    res.status(500).json({ error: 'Fehler beim Löschen.' });
+  }
+});
+
 
 module.exports = router;

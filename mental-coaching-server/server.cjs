@@ -71,47 +71,79 @@ app.use('/images', express.static(path.join(__dirname, 'public/images')));
 // // **API-Endpunkte**
 // // Handler fur die Registration
 app.post('/api/register', async (req, res) => {
-  const { email, password } = req.body;
+  const {
+    email,
+    password,
+    role,
+    first_name,
+    last_name,
+    street,
+    street_nr,
+    zip,
+    city,
+    phone,
+    birthdate
+  } = req.body;
 
   console.log('>>> /api/register wurde aufgerufen!');
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich.' });
+  if (
+    !email || !password || !role || !first_name || !last_name ||
+    !street || !street_nr || !zip || !city || !phone || !birthdate
+  ) {
+    return res.status(400).json({ error: 'Alle Felder sind erforderlich.' });
   }
+
   if (!/\S+@\S+\.\S+/.test(email)) {
-    return res.status(400).json({ error: 'Ungultiges E-Mail-Format.' });
+    return res.status(400).json({ error: 'Ungültiges E-Mail-Format.' });
   }
+
   if (password.length < 6) {
     return res.status(400).json({ error: 'Das Passwort muss mindestens 6 Zeichen lang sein.' });
   }
 
   try {
-    console.log('Vor der Abfrage nach existingUser');
     const existingUser = await pool.query('SELECT email FROM users WHERE email = $1', [email]);
-    console.log('Nach der Abfrage nach existingUser');
-
     if (existingUser.rows.length > 0) {
       return res.status(409).json({ error: 'Diese E-Mail-Adresse ist bereits registriert.' });
     }
 
-    console.log('Vor dem Hashing des Passworts');
     const hashedPassword = await bcrypt.hash(password, 10);
-    console.log('Nach dem Hashing des Passworts');
 
-    console.log('Vor dem Einfugen des neuen Benutzers');
     const newUser = await pool.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, created_at, role',
-      [email, hashedPassword]
+      `INSERT INTO users (
+        email, password_hash, role, first_name, last_name, street,
+        street_nr, zip, city, phone, birthdate
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      RETURNING id, email, created_at, role`,
+      [
+        email,
+        hashedPassword,
+        role,
+        first_name,
+        last_name,
+        street,
+        street_nr,
+        zip,
+        city,
+        phone,
+        birthdate
+      ]
     );
-    console.log('Nach dem Einfugen des neuen Benutzers');
 
-    return res.status(201).json({ message: 'Registrierung erfolgreich!', userId: newUser.rows[0].id, email: newUser.rows[0].email, role: newUser.rows[0].role });
+    return res.status(201).json({
+      message: 'Registrierung erfolgreich!',
+      userId: newUser.rows[0].id,
+      email: newUser.rows[0].email,
+      role: newUser.rows[0].role
+    });
 
   } catch (error) {
     console.error('Fehler bei der Registrierung:', error);
     return res.status(500).json({ error: 'Fehler bei der Registrierung.' });
   }
 });
+
 
 // Handler furs Login
 app.post('/api/login', async (req, res) => {
@@ -150,17 +182,20 @@ app.post('/api/login', async (req, res) => {
 
       return res.status(200).json({
         message: 'Login erfolgreich!',
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        street: user.street,
-        street_nr: user.street_nr,
-        zip: user.zip,
-        city: user.city,
-        phone: user.phone
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          street: user.street,
+          street_nr: user.street_nr,
+          zip: user.zip,
+          city: user.city,
+          phone: user.phone
+        }
       });
+      
           } else {
       console.log('Fehler: Passwort stimmt nicht uberein fur Benutzer-ID:', user.id);
       return res.status(401).json({ error: 'Ungultige Anmeldeinformationen.' });
@@ -203,7 +238,8 @@ app.get('/api/user', async (req, res) => {
           street_nr: user.street_nr,
           zip: user.zip,
           city: user.city,
-          phone: user.phone
+          phone: user.phone,
+          assigned_staff_id: user.assigned_staff_id
         });
               } else {
         return res.status(404).json({ error: 'Benutzer nicht gefunden.' });
@@ -635,6 +671,20 @@ app.post('/api/book-appointments', async (req, res) => {
 
   if (!staffId) return res.status(401).json({ error: 'Nicht authentifiziert.' });
 
+  const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [staffId]);
+  const user = userResult.rows[0];
+
+  // Nur wenn Rolle 'client' und noch kein staff zugewiesen
+  if (user.role === 'client' && !user.assigned_staff_id) {
+    await pool.query(`
+      UPDATE users 
+      SET assigned_staff_id = $1 
+      WHERE id = $2
+    `, [staffId, staffId]);
+
+    req.session.assigned_staff_id = staffId; // ✅ NEUER staff wird korrekt in Session übernommen
+  }
+
   const {
     start_time,
     end_time,
@@ -655,7 +705,7 @@ app.post('/api/book-appointments', async (req, res) => {
       return res.status(403).json({ error: 'Benutzerrolle konnte nicht ermittelt werden.' });
     }
 
-    let clientId = staffId; // Standard: Nutzer ist Kunde selbst
+    let clientId = staffId; // Standard: Nutzer ist der Kunde selbst
     if (role === 'staff' && user_id) {
       clientId = user_id;
     }
@@ -846,6 +896,21 @@ app.post('/api/settings/cancel_limit_hours', async (req, res) => {
   res.json({ message: 'Wert gespeichert' });
 });
 
+app.get('/api/staff', async (req, res) => {
+  if (!req.session.userId || req.session.role !== 'client') {
+    return res.status(401).json({ error: 'Nicht autorisiert' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, first_name, last_name, email FROM users WHERE role = 'staff'`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fehler beim Abrufen der Staff-Nutzer:', err);
+    res.status(500).json({ error: 'Fehler beim Laden der Coaches.' });
+  }
+});
 
 // Fuge diesen Handler zu deinem Express-Server hinzu
 app.post('/api/logout', (req, res) => {

@@ -1,38 +1,30 @@
 import React from 'react';
-import AppointmentNotes from './AppointmentNotes'; // falls gebraucht
 
 const ClientDashboard = ({
   user,
   authLoading,
   futureAppointments,
   pastAppointments,
-  calendarAppointments,
-  calendarRef,
-  handleDelete,
-  editingNoteIds,
-  expandedAppointmentIds,
-  tempClientNoteContent,
-  tempStaffNoteContent,
-  setTempClientNoteContent,
-  setTempStaffNoteContent,
-  clientNoteEditorRef,
-  staffNoteEditorRef,
-  handleEditNoteClick,
-  saveNote,
-  showNoteSavedMessage,
   renderAppointmentItem,
-  setIsCalendarModalOpen
+  showNoteSavedMessage,
+  setIsCalendarModalOpen,
 }) => {
+  const userName = user?.first_name
+    ? user.first_name.charAt(0).toUpperCase() + user.first_name.slice(1)
+    : 'Benutzer';
+
   return (
     <section id="client-section" className="dashboard-section">
-      <h2>Hallo {user?.first_name?.charAt(0).toUpperCase() + user?.first_name?.slice(1) || 'Benutzer'}!</h2>
-      <button
-        id="open-calendar-button"
-        className="open-calendar-button"
-        onClick={() => setIsCalendarModalOpen(true)}
-      >
-        Kalender öffnen
-      </button>
+      <div className="welcome-container">
+        <h2>Hallo {userName}!</h2>
+        <button
+          id="open-calendar-button"
+          className="open-calendar-button"
+          onClick={() => setIsCalendarModalOpen(true)}
+        >
+          📅 Kalender öffnen
+        </button>
+      </div>
 
       <div id="client-appointments">
         {authLoading ? (
@@ -40,19 +32,19 @@ const ClientDashboard = ({
         ) : (
           <>
             {futureAppointments.length === 0 && pastAppointments.length === 0 ? (
-              <p>Keine Termine gefunden.</p>
+              <p id="no-appointments-message">Keine Termine gefunden.</p>
             ) : (
               <>
                 {futureAppointments.length > 0 && (
                   <div className="appointment-group">
                     <h3>Zukünftige Termine</h3>
-                    {futureAppointments.map(app => renderAppointmentItem(app, 'future'))}
+                    {futureAppointments.map((app) => renderAppointmentItem(app, 'future'))}
                   </div>
                 )}
                 {pastAppointments.length > 0 && (
                   <div className="appointment-group">
                     <h3>Vergangene Termine</h3>
-                    {pastAppointments.map(app => renderAppointmentItem(app, 'past'))}
+                    {pastAppointments.map((app) => renderAppointmentItem(app, 'past'))}
                   </div>
                 )}
               </>

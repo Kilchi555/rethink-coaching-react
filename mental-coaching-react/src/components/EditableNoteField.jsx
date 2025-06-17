@@ -15,35 +15,45 @@ const EditableNoteField = React.memo(({
   const innerRef = useRef(null);
   const [charCount, setCharCount] = useState(0);
 
+  const prevIsEditing = useRef(false);
+
   // ⚙️ Synchronisiere Editor-Inhalt mit props
   useEffect(() => {
     const el = innerRef.current;
     if (!el) return;
-
+  
+    const safeContent = String(content || '');
+  
     if (isEditing) {
-      const safeContent = String(content || '');
       if (el.innerHTML !== safeContent) {
         el.innerHTML = safeContent;
       }
-
-      // Cursor ans Ende setzen
-      setTimeout(() => {
-        if (el === document.activeElement) {
-          const range = document.createRange();
-          const sel = window.getSelection();
-          range.selectNodeContents(el);
-          range.collapse(false);
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
-      }, 0);
+  
+      // Nur Cursor setzen, wenn gerade in den Editiermodus gewechselt
+      if (!prevIsEditing.current && isEditing) {
+        setTimeout(() => {
+          if (el === document.activeElement) {
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(el);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }, 0);
+      }
+  
     } else {
       const safeInitialContent = String(initialContent || 'Keine Notiz vorhanden.');
       if (el.innerHTML !== safeInitialContent) {
         el.innerHTML = safeInitialContent;
       }
     }
+  
+    // Merke den aktuellen Status für das nächste Rendern
+    prevIsEditing.current = isEditing;
   }, [isEditing, content, initialContent]);
+  
 
   useEffect(() => {
     if (editorRef) {
@@ -73,11 +83,12 @@ const EditableNoteField = React.memo(({
 
   const handleBlur = () => {
     if (isEditing && onSave) {
-      onSave(content).then((success) => {
+      const currentHTML = innerRef.current?.innerHTML || '';
+      onSave(currentHTML).then((success) => {
         if (success && onNoteSaved) onNoteSaved();
       });
     }
-  };
+  };  
 
   return (
     <div className="note-wrapper">

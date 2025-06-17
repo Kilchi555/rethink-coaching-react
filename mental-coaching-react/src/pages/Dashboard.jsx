@@ -7,7 +7,8 @@ import AppointmentModal from '../components/AppointmentModal'; // <<-- NEU: Dein
 import EditableNoteField from '../components/EditableNoteField'; // <-- NEU: Importiere die neue Komponente
 import AppointmentNotes from '../components/AppointmentNotes';
 import StaffDashboard from '../components/StaffDashboard';
-
+import ClientDashboard from '../components/ClientDashboard';
+import AppointmentDetailsModal from '../components/AppointmentDetailsModal';
 
 
 // --- Hilfskomponenten ---
@@ -17,6 +18,7 @@ const LoadingSpinner = ({ message }) => (
     <span>{message || "Lädt Daten..."}</span>
   </div>
 );
+
 
 // --- Hauptkomponente: Dashboard ---
 const Dashboard = () => {
@@ -804,32 +806,42 @@ const Dashboard = () => {
       console.log('--- handleEditNoteClick aufgerufen ---');
       console.log('  appointmentId:', appointmentId, 'type:', type);
     
-      // 🔍 Termin finden – aus calendar ODER past
-      const currentAppointment =
-        calendarAppointments.find(appt => appt.id === appointmentId);
+      // 🔍 Termin aus Kalender oder vergangen suchen
+      const allAppointments = [...calendarAppointments, ...pastAppointments];
+      const currentAppointment = allAppointments.find(appt => appt.id === appointmentId);
     
-      const currentNote = type === 'client'
-        ? currentAppointment?.client_note
-        : currentAppointment?.staff_note;
-    
-      // ✅ 1. ZUERST temp content setzen
-      if (type === 'client') {
-        setTempClientNoteContent(currentNote || '');
-      } else if (type === 'staff') {
-        setTempStaffNoteContent(currentNote || '');
+      if (!currentAppointment) {
+        console.warn(`⚠️ Termin mit ID ${appointmentId} nicht gefunden.`);
+        return;
       }
     
-      // ✅ 2. DANN Editor aktivieren
+      // ✍️ Aktuelle Notiz lesen
+      const currentNote = type === 'client'
+        ? currentAppointment.client_note
+        : currentAppointment.staff_note;
+    
+      // ✅ 1. Zuerst temporären Content setzen
+      if (type === 'client') {
+        setTempClientNoteContent(prev => ({ ...prev, [appointmentId]: currentNote || '' }));
+      } else if (type === 'staff') {
+        setTempStaffNoteContent(prev => ({ ...prev, [appointmentId]: currentNote || '' }));
+      }
+    
+      // ✅ 2. Dann Editor aktivieren
       setEditingNoteIds(prev => {
         const newState = { ...prev, [appointmentId]: type };
         console.log('  Neuer editingNoteIds Zustand nach setEditingNoteIds:', newState);
         return newState;
       });
     
-    }, [calendarAppointments, setEditingNoteIds, setTempClientNoteContent, setTempStaffNoteContent]);
+    }, [
+      calendarAppointments,
+      pastAppointments,
+      setTempClientNoteContent,
+      setTempStaffNoteContent,
+      setEditingNoteIds
+    ]);
     
-    
-
   const renderAppointmentItem = (appointment, type) => {
     const isExpanded = !!expandedAppointmentIds[appointment.id];
     const startDate = new Date(appointment.start_time);
@@ -854,30 +866,37 @@ const Dashboard = () => {
     });
 
 
-    const handleAppointmentClick = () => {
-      setAppointment(appointment);
+    const handleAppointmentClick = (appointmentId) => {
+      const freshAppointment =
+        futureAppointments.find((a) => a.id === appointmentId) ||
+        pastAppointments.find((a) => a.id === appointmentId);
     
-      setExpandedAppointmentIds(prev => ({
+      if (!freshAppointment) return;
+    
+      setAppointment(freshAppointment);
+    
+      const isCurrentlyExpanded = !!expandedAppointmentIds[appointmentId];
+    
+      setExpandedAppointmentIds((prev) => ({
         ...prev,
-        [appointment.id]: !isExpanded
+        [appointmentId]: !isCurrentlyExpanded,
       }));
     
-      // Wenn der Termin gerade aufgeklappt wird:
-      if (!isExpanded) {
-        setTempClientNoteContent(appointment.client_note || '');
-        setTempStaffNoteContent(appointment.staff_note || '');
+      if (!isCurrentlyExpanded) {
+        setTempClientNoteContent(freshAppointment.client_note || '');
+        setTempStaffNoteContent(freshAppointment.staff_note || '');
     
-        // ❗ Nur Bearbeitungsstatus für diesen Termin zurücksetzen, wenn er NICHT aktiv ist
-        setEditingNoteIds(prev => {
-          const isEditing = !!prev[appointment.id];
-          if (!isEditing) return prev; // Nichts ändern
-          // Falls du aktiv zurücksetzen willst, entferne ihn gezielt:
+        setEditingNoteIds((prev) => {
+          const isEditing = !!prev[appointmentId];
+          if (!isEditing) return prev;
           const newState = { ...prev };
-          delete newState[appointment.id];
+          delete newState[appointmentId];
           return newState;
         });
       }
     };
+    
+    
     
 
     return (
@@ -885,8 +904,8 @@ const Dashboard = () => {
       // WICHTIG: Dieser Key muss sich ändern, wenn sich der Notizinhalt ändert!
       key={`${appointment.id}-${appointment.staff_note || ''}-${appointment.client_note || ''}`}
       className={`appointment-item ${isExpanded ? 'expanded' : ''} ${isFuture ? 'future-border' : 'past-border'}`}
-      onClick={handleAppointmentClick} // Dein Click-Handler für das Aufklappen
-    >
+      onClick={() => handleAppointmentClick(appointment.id)}
+      >
         <div className="appointment-info">
           <div className="info-field">
             <strong>
@@ -946,7 +965,17 @@ const Dashboard = () => {
       const saveNote = useCallback(async (appointmentId, type, noteContentToSave, exitEditMode = false) => {
         console.log('--- START saveNote ---');
         console.log(`⚠️ saveNote wurde aufgerufen für Termin ${appointmentId} [${type}]`);
-        console.log('1. noteContentToSave (Editor-Inhalt):', noteContentToSave);
+        console.log('1. Ursprünglicher noteContentToSave (vor Editor-Check):', noteContentToSave);
+      
+        // 🧠 Hol dir IMMER den aktuellsten Inhalt direkt aus dem Editor
+        if (type === 'staff' && staffNoteEditorRef?.current) {
+          noteContentToSave = staffNoteEditorRef.current.innerHTML;
+        }
+        if (type === 'client' && clientNoteEditorRef?.current) {
+          noteContentToSave = clientNoteEditorRef.current.innerHTML;
+        }
+      
+        console.log('2. Tatsächlich verwendeter noteContentToSave (nach EditorRef):', noteContentToSave);
       
         // ✨ Leere Notiz verhindern
         const cleanedNote = (noteContentToSave || '')
@@ -988,13 +1017,13 @@ const Dashboard = () => {
         // 🧠 Einzeltermin im Modal aktualisieren
         const updatedSingleAppointment = updatedCalendarAppointments.find(a => a.id === appointmentId);
         if (updatedSingleAppointment) {
-          setAppointment({ ...updatedSingleAppointment }); 
+          setAppointment({ ...updatedSingleAppointment });
           console.log('✅ Termin erfolgreich optimistisch aktualisiert:', updatedSingleAppointment);
         } else {
           console.warn('⚠️ Termin wurde im State nicht gefunden nach Update.');
         }
       
-        // ✨ Optional: Editor-Content updaten
+        // ✨ Editor-Content im temp-State updaten
         if (type === 'client') {
           setTempClientNoteContent(prev => ({ ...prev, [appointmentId]: noteContentToSave }));
         }
@@ -1004,10 +1033,14 @@ const Dashboard = () => {
       
         // 🔚 Bearbeitungsmodus verlassen
         if (exitEditMode === true) {
-          setEditingNoteIds(prev => ({ ...prev, [appointmentId]: false }));
+          setEditingNoteIds(prev => {
+            const updated = { ...prev };
+            delete updated[appointmentId];
+            return updated;
+          });
         }
       
-        // ✨ Feedback
+        // ✨ Feedback-Toast anzeigen
         setShowNoteSavedMessage(true);
         if (noteSavedTimeoutRef.current) clearTimeout(noteSavedTimeoutRef.current);
         noteSavedTimeoutRef.current = setTimeout(() => setShowNoteSavedMessage(false), 3000);
@@ -1055,7 +1088,6 @@ const Dashboard = () => {
         } finally {
           console.log('--- END saveNote ---');
         }
-      
       }, [
         user,
         calendarAppointments, setCalendarAppointments,
@@ -1063,8 +1095,10 @@ const Dashboard = () => {
         tempClientNoteContent, setTempClientNoteContent,
         tempStaffNoteContent, setTempStaffNoteContent,
         setEditingNoteIds, editingNoteIds,
-        setShowNoteSavedMessage, noteSavedTimeoutRef
+        setShowNoteSavedMessage, noteSavedTimeoutRef,
+        staffNoteEditorRef, clientNoteEditorRef,
       ]);
+      
       
       
 
@@ -1113,7 +1147,7 @@ const Dashboard = () => {
     // 🛑 Kunden dürfen <24h nicht mehr löschen
     if (isClient && isFuture && lessThan24h) {
       window.alert(
-        '⚠️ Die Absage ist zu kurzfristig und zu 100 % kostenpflichtig. Der Termin kann nicht mehr online storniert werden.'
+        '⚠️ Die Absage ist zu kurzfristig und zu 100% kostenpflichtig. Der Termin kann nicht mehr online storniert werden.'
       );
       return;
     }
@@ -1140,6 +1174,24 @@ const Dashboard = () => {
       console.error('Fehler beim Löschen:', err);
     }
   };
+
+  const [listOfStaffUsers, setListOfStaffUsers] = useState([]);
+
+  useEffect(() => {
+    const fetchStaff = async () => {
+      try {
+        const res = await fetch('/api/staff'); // Deine API zum Holen aller Coaches
+        const data = await res.json();
+        setListOfStaffUsers(data);
+      } catch (err) {
+        console.error('Fehler beim Laden der Coaches:', err);
+      }
+    };
+
+    if (user?.role === 'client') {
+      fetchStaff(); // Nur für clients laden
+    }
+  }, [user]);
   
   
 
@@ -1159,277 +1211,48 @@ const Dashboard = () => {
           <button className="logout-button" onClick={handleLogout}>Logout</button>
         </div>
       </header>
-
+  
       <main>
-
-      {user?.role === 'admin' && (
-        <Link to="/admin">⚙️ Admin-Einstellungen</Link>
-      )}
-
+        {user?.role === 'admin' && (
+          <Link to="/admin">⚙️ Admin-Einstellungen</Link>
+        )}
+  
         {user?.role === 'staff' && (
-          <section id="staff-section" className="dashboard-section">
-            <div className="welcome-container">
-              <h2>Hallo {user?.first_name?.charAt(0).toUpperCase() + user?.first_name?.slice(1) || 'Benutzer'}!</h2>
-              <button
-                  id="open-calendar-button"
-                  className="open-calendar-button"
-                  onClick={() => setIsCalendarModalOpen(true)}
-                >
-                  📅 Kalender öffnen
-              </button>
-            </div>
-
-            {/* Die Lade-Anzeige für Mitarbeiter-spezifische Daten wie Statistiken oder Kundenliste */}
-            {isstaffLoading ? (
-              <LoadingSpinner message="Lade Mitarbeiter-Daten..." />
-            ) : (
-              <>
-            <div className="staff-stats-container">
-              {staffStats && staffStats.monthlyCompletedSessions && staffStats.monthlyCompletedSessions.length > 0 ? (
-                (() => {
-                  const currentMonthIndex = new Date().getMonth(); // 0-11
-                  const lastMonthIndex = currentMonthIndex === 0 ? 11 : currentMonthIndex - 1; // 0-11
-
-                  const currentMonthData = staffStats.monthlyCompletedSessions.find(
-                    (data) => parseInt(data.month) === currentMonthIndex + 1
-                  );
-                  const lastMonthData = staffStats.monthlyCompletedSessions.find(
-                    (data) => parseInt(data.month) === lastMonthIndex + 1
-                  );
-
-                  return (
-                    <div className="stats-text"> {/* Dieser Container wird jetzt ein Flex-Container */}
-                      <span className="month-stat">
-                        <strong>Aktueller Monat</strong> ({monthNames[currentMonthIndex]}):{" "}
-                        {currentMonthData ? `${currentMonthData.count} Termine` : "0 Termine"}
-                      </span>
-                      <span className="month-stat">
-                        <strong>Letzter Monat</strong> ({monthNames[lastMonthIndex]}):{" "}
-                        {lastMonthData ? `${lastMonthData.count} Termine` : "0 Termine"}
-                      </span>
-                    </div>
-                  );
-                })()
-              ) : (
-                <p className="stats-text">Keine erledigten Termine für das aktuelle Jahr gefunden.</p>
-              )}
-
-              {/* Button, um alle Monate anzuzeigen (jetzt innerhalb des neuen Containers) */}
-              {staffStats && staffStats.monthlyCompletedSessions && staffStats.monthlyCompletedSessions.length > 0 && (
-                <button onClick={() => setShowAllMonthsModal(true)} className="btn btn-secondary view-all-months-btn">
-                  Alle Monate anzeigen
-                </button>
-              )}
-            </div>
-
-            {/* MODAL FÜR ALLE MONATE */}
-            {showAllMonthsModal && (
-              <div className="modal-overlay"> {/* Styling für Overlay ist wichtig (position: fixed, full screen, background) */}
-                <div className="modal-content"> {/* Styling für Modal-Inhalt (background, padding, max-width, center) */}
-                  <h3>Alle bisherigen Monatsstatistiken</h3>
-                  {staffStats.monthlyCompletedSessions.length > 0 ? (
-                    <ul>
-                      {staffStats.monthlyCompletedSessions.map((data) => (
-                        <li key={data.month}>
-                          <strong>{monthNames[parseInt(data.month) - 1]}:</strong> {data.count} Termine
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p>Keine Monatsstatistiken verfügbar.</p>
-                  )}
-                  <button onClick={() => setShowAllMonthsModal(false)} className="btn">
-                    Schließen
-                  </button>
-                </div>
-              </div>
-            )}
-                        <div className="staff-clients-list">
-              <h3>Ihre zugewiesenen Kunden:</h3>
-              {myStaffclients.length > 0 ? (
-                <div className="clients-card-list">
-                  {myStaffclients.map(client => (
-                    // Jede Karte ist jetzt klickbar, um das Modal zu öffnen
-                    <div
-                      key={client.id}
-                      className="client-card"
-                      onClick={() => handleClientCardClick(client)}
-                      style={{ cursor: 'pointer' }} // Zeigt an, dass die Karte klickbar ist
-                    >
-                      <div className="card-header">
-                        <h4>{client.first_name} {client.last_name}</h4>
-                      </div>
-                      {/* card-body und card-actions wurden entfernt, da Details im Modal sind */}
-                      {/* Hier könnten Sie optional einen kleinen Pfeil oder ein Icon hinzufügen,
-                          das anzeigt, dass man klicken kann, um Details zu sehen. */}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p>Noch keine zugewiesenen Kunden gefunden.</p>
-              )}
-            </div>
-
-      {/* NEU: Kunden-Details-Modal */}
-      {showClientDetailsModal && selectedClient && (
-                    <div className="modal-overlay">
-                        <div className="modal-content client-details-modal-content">
-                            <h3>Details für {selectedClient.first_name} {selectedClient.last_name}</h3>
-
-                            {/* NEU: Grid-Container für die Kundendetails */}
-                            <div className="client-detail-grid">
-                                <p><strong>E-Mail:</strong></p>
-                                <p>{selectedClient.email}</p>
-
-                                <p><strong>Telefon:</strong></p>
-                                <p>{selectedClient.phone || '-'}</p> {/* Zeigt '-' an, wenn keine Nummer vorhanden */}
-
-                                {/* NEU: Adresse aus einzelnen Feldern zusammenfügen */}
-                                {/* Wir prüfen, ob mindestens eines der Adressfelder vorhanden ist, um die Adresse anzuzeigen */}
-                                {(selectedClient.street || selectedClient.street_nr || selectedClient.zip || selectedClient.city) && (
-                                    <>
-                                        <p><strong>Adresse:</strong></p>
-                                        <p>
-                                            {/* Zeigt Straße und Hausnummer an, falls vorhanden */}
-                                            {(selectedClient.street || selectedClient.street_nr) && (
-                                                <>
-                                                    {selectedClient.street && `${selectedClient.street}`}
-                                                    {selectedClient.street_nr && ` ${selectedClient.street_nr}`}
-                                                    <br/> {/* Zeilenumbruch für PLZ und Ort */}
-                                                </>
-                                            )}
-                                            {/* Zeigt PLZ und Ort an, falls vorhanden */}
-                                            {(selectedClient.zip || selectedClient.city) && (
-                                                <>
-                                                    {selectedClient.zip && `${selectedClient.zip}`}
-                                                    {selectedClient.city && ` ${selectedClient.city}`}
-                                                </>
-                                            )}
-                                        </p>
-                                    </>
-                                )}
-
-
-                                {selectedClient.birthdate && (
-                                    <>
-                                        <p><strong>Geburtsdatum:</strong></p>
-                                        {/* Datum im deutschen Format anzeigen */}
-                                        <p>{new Date(selectedClient.birthdate).toLocaleDateString('de-DE')}</p>
-                                    </>
-                                )}
-
-                                {selectedClient.created_at && (
-                                    <>
-                                        <p><strong>Kunde seit:</strong></p>
-                                        {/* Datum im deutschen Format anzeigen */}
-                                        <p>{new Date(selectedClient.created_at).toLocaleDateString('de-DE')}</p>
-                                    </>
-                                )}
-                            </div>
-                            {/* Ende des Grid-Containers */}
-
-                            <button
-                                onClick={() => setShowClientDetailsModal(false)}
-                                className="btn btn-primary mt-3"
-                            >
-                                Schließen
-                            </button>
-                        </div>
-                    </div>
-                )}
-            {/* Ende des Kunden-Details-Modals */}
-
-
-                {/* --- NEUER BEREICH FÜR TERMINE (ANALOG ZUM KUNDENBEREICH) --- */}
-                <div id="staff-appointments">
-                    {authLoading ? (
-                      <LoadingSpinner message="Lade Ihre Termine..." />
-                    ) : (
-                      <>
-                        {dashboardError && (
-                          <p className="error-message">Fehler beim Laden der Termine: {dashboardError}</p>
-                        )}
-
-                        {futureAppointments.length === 0 && pastAppointments.length === 0 ? (
-                          <p id="no-staff-appointments-message">Keine Termine gefunden.</p>
-                        ) : (
-                          <>
-                            {futureAppointments.length > 0 && (
-                              <div className="appointment-group">
-                                <h3>Zukünftige Termine</h3>
-                                {futureAppointments.map(app => renderAppointmentItem(app, 'future'))}
-                              </div>
-                            )}
-                            {pastAppointments.length > 0 && (
-                              <div className="appointment-group">
-                                <h3>Vergangene Termine (Ihre Coach-Termine)</h3>
-                                {pastAppointments.map(app => renderAppointmentItem(app, 'past'))}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                {showNoteSavedMessage && (
-                  <div id="note-saved-message">Ihre Notiz wurde gespeichert.</div>
-                )}
-              </>
-            )}
-          </section>
+          <StaffDashboard
+          user={user}
+          staffStats={staffStats}
+          isstaffLoading={isstaffLoading}
+          showAllMonthsModal={showAllMonthsModal}
+          setShowAllMonthsModal={setShowAllMonthsModal}
+          myStaffclients={myStaffclients}
+          handleClientCardClick={handleClientCardClick}
+          monthNames={monthNames}
+          authLoading={authLoading}
+          futureAppointments={futureAppointments}
+          pastAppointments={pastAppointments}
+          renderAppointmentItem={renderAppointmentItem}
+          showNoteSavedMessage={showNoteSavedMessage}
+          setIsCalendarModalOpen={setIsCalendarModalOpen}
+          showClientDetailsModal={showClientDetailsModal}         
+          selectedClient={selectedClient}                         
+          setShowClientDetailsModal={setShowClientDetailsModal}   
+        />        
+        
         )}
-
+  
         {user?.role === 'client' && (
-          <section id="client-section" className="dashboard-section">
-            <div className='welcome-container'>
-                <h2>Hallo {user?.first_name?.charAt(0).toUpperCase() + user?.first_name?.slice(1) || 'Benutzer'}!</h2>
-                <button
-                  id="open-calendar-button"
-                  className="open-calendar-button"
-                  onClick={() => setIsCalendarModalOpen(true)}
-                >
-                  Kalender öffnen
-                </button>
-            </div>
-            
-            <div id="client-appointments">
-                {authLoading ? (
-                  <LoadingSpinner message="Lade Ihre Termine..." />
-                ) : (
-                  <>
-                    {dashboardError && (
-                      <p className="error-message">Fehler beim Laden der Termine: {dashboardError}</p>
-                    )}
-                    {futureAppointments.length === 0 && pastAppointments.length === 0 ? (
-                      <p id="no-appointments-message">Keine Termine gefunden.</p>
-                    ) : (
-                      <>
-                        {futureAppointments.length > 0 && (
-                          <div className="appointment-group">
-                            <h3>Zukünftige Termine</h3>
-                            {futureAppointments.map(app => renderAppointmentItem(app, 'future'))}
-                          </div>
-                        )}
-                        {pastAppointments.length > 0 && (
-                          <div className="appointment-group">
-                            <h3>Vergangene Termine</h3>
-                            {pastAppointments.map(app => renderAppointmentItem(app, 'past'))}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-
-
-            {showNoteSavedMessage && (
-              <div id="note-saved-message">Ihre Notiz wurde gespeichert.</div>
-            )}
-          </section>
+          <ClientDashboard
+            user={user}
+            authLoading={authLoading}
+            futureAppointments={futureAppointments}
+            pastAppointments={pastAppointments}
+            renderAppointmentItem={renderAppointmentItem}
+            showNoteSavedMessage={showNoteSavedMessage}
+            setIsCalendarModalOpen={setIsCalendarModalOpen}
+          />
         )}
-
+  
+        {/* Kalender-Modal */}
         {isCalendarModalOpen && (
           <div className="calendar-modal-wrapper">
             <div className="modal-content">
@@ -1447,59 +1270,33 @@ const Dashboard = () => {
             </div>
           </div>
         )}
-
+  
+        {/* Termin-Details-Modal */}
         {isAppointmentDetailsModalOpen && appointment && (
-          <div className="modal-overlay">
-            <div className="modal-content">
-              <h3>📅 Termin-Details</h3>
-              <p><strong>Kunde:</strong> {`${appointment.client_first_name || ''} ${appointment.client_last_name || ''}`.trim()}</p>
-              <p><strong>Datum:</strong> {new Date(appointment.start_time).toLocaleDateString('de-CH', {
-                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-              })}</p>
-              <p><strong>Zeit:</strong> {`${new Date(appointment.start_time).toLocaleTimeString('de-CH', {
-                hour: '2-digit', minute: '2-digit'
-              })} – ${new Date(appointment.end_time).toLocaleTimeString('de-CH', {
-                hour: '2-digit', minute: '2-digit'
-              })}`}</p>
-              <p><strong>Ort:</strong> {appointment.location}</p>
-              <p><strong>Thema:</strong> {appointment.title}</p>
-
-              {/* 💬 Hier kommen die Notizfelder für vergangene Termine */}
-              <AppointmentNotes
-                appointment={appointment}
-                user={user}
-                calendarAppointments={calendarAppointments}
-                tempClientNoteContent={tempClientNoteContent}
-                tempStaffNoteContent={tempStaffNoteContent}
-                setTempClientNoteContent={setTempClientNoteContent}
-                setTempStaffNoteContent={setTempStaffNoteContent}
-                clientNoteEditorRef={clientNoteEditorRef}
-                staffNoteEditorRef={staffNoteEditorRef}
-                editingNoteIds={editingNoteIds}
-                handleEditNoteClick={handleEditNoteClick}
-                saveNote={saveNote}
-                setShouldLoadStats={setShouldLoadStats}
-              />
-
-              <div className="button-row">
-                <button onClick={() => setIsAppointmentDetailsModalOpen(false)}>Schliessen</button>
-                <button
-                  onClick={() => triggerCopyAppointment(appointment)}
-                  className="copy-button-inline"
-                  title="Termin kopieren"
-                >📋 Kopieren</button>
-                <button onClick={() => handleDelete(appointment)}>🗑️ Termin löschen</button>
-              </div>
-            </div>
-          </div>
+          <AppointmentDetailsModal
+            appointment={appointment}
+            user={user}
+            calendarAppointments={calendarAppointments}
+            tempClientNoteContent={tempClientNoteContent}
+            tempStaffNoteContent={tempStaffNoteContent}
+            setTempClientNoteContent={setTempClientNoteContent}
+            setTempStaffNoteContent={setTempStaffNoteContent}
+            clientNoteEditorRef={clientNoteEditorRef}
+            staffNoteEditorRef={staffNoteEditorRef}
+            editingNoteIds={editingNoteIds}
+            handleEditNoteClick={handleEditNoteClick}
+            saveNote={saveNote}
+            setIsAppointmentDetailsModalOpen={setIsAppointmentDetailsModalOpen}
+            handleDelete={handleDelete}
+            triggerCopyAppointment={triggerCopyAppointment}
+          />
         )}
-
-
-
-        {/* Das neue/umbenannte AppointmentModal */}
-        {isAppointmentModalOpen && (user?.role === 'staff' || user?.role === 'admin' || user?.role === 'client') && ( 
+  
+        {/* Termin-Erstellungs-Modal */}
+        {isAppointmentModalOpen && (
           <AppointmentModal
             isOpen={isAppointmentModalOpen}
+            allstaff={listOfStaffUsers}
             onClose={() => {
               setIsAppointmentModalOpen(false);
               setInitialEventDataForModal(null);
@@ -1508,46 +1305,29 @@ const Dashboard = () => {
             initialEventData={initialEventDataForModal}
             selectedDateAndTime={selectedDateAndTimeForModal}
             onSave={handleSaveAppointmentFromModal}
+            handleDelete={handleDelete}
             user={user}
             allclients={allclients}
             lastUsedTitle={lastUsedTitle}
             lastUsedLocation={lastUsedLocation}
             lastUsedDuration={lastUsedDuration}
-            // Die set-Funktionen für "Zuletzt verwendet" müssen im Dashboard bleiben,
-            // da die Werte dort persistieren und von anderen Aktionen beeinflusst werden könnten.
-            // Sie werden hier nicht direkt an das Modal übergeben, da das Modal seinen onSave-Callback aufruft.
           />
         )}
-
-
-      {showConfirmationModal && pendingEventDrop && originalDroppedEvent && (user?.role === 'staff' || user?.role === 'admin') && ( // Nur für Staff/Admin
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3>Aktion für Termin "{originalDroppedEvent.title}"</h3>
-            <p>Was möchten Sie tun?</p>
-            <p>
-              Ursprünglich: {new Date(originalDroppedEvent.start).toLocaleString('de-CH')}
-              <br />
-              Neue Position: {new Date(pendingEventDrop.start).toLocaleString('de-CH')}
-            </p>
-            <div>
-              <input
-                type="checkbox"
-                id="sendSms"
-                checked={sendSmsNotification}
-                onChange={(e) => setSendSmsNotification(e.target.checked)}
-              />
-              <label htmlFor="sendSms"> Kunden per SMS benachrichtigen</label>
-            </div>
-            <div className="button-row">
-              <button onClick={duplicateEventDrop} className="duplicate-button">Duplizieren</button>
-              <button onClick={confirmEventDrop}>Verschieben</button>
-              <button onClick={cancelEventDrop} className="cancel-button">Abbrechen</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+  
+        {/* Bestätigungs-Modal fürs Verschieben */}
+        {showConfirmationModal && pendingEventDrop && originalDroppedEvent && (
+          <MoveConfirmationModal
+            originalDroppedEvent={originalDroppedEvent}
+            pendingEventDrop={pendingEventDrop}
+            sendSmsNotification={sendSmsNotification}
+            setSendSmsNotification={setSendSmsNotification}
+            confirmEventDrop={confirmEventDrop}
+            duplicateEventDrop={duplicateEventDrop}
+            cancelEventDrop={cancelEventDrop}
+          />
+        )}
+  
+        {/* Buttons bei Änderungen */}
         {hasChanges && (user?.role === 'staff' || user?.role === 'admin') && (
           <div className="calendar-action-buttons">
             <button onClick={handleSaveChanges}>Änderungen speichern</button>
@@ -1557,6 +1337,7 @@ const Dashboard = () => {
       </main>
     </div>
   );
-};
+  
+}
 
 export default Dashboard;

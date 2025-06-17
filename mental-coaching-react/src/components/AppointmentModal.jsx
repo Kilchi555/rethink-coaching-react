@@ -3,6 +3,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { registerLocale } from "react-datepicker";
 import de from 'date-fns/locale/de'; // Import für Deutsch
+import { fetchStaffLocations } from '../api/locationService';
 registerLocale('de', de); // Deutsch als Standard-Locale registrieren
 
 const AppointmentModal = ({
@@ -10,12 +11,14 @@ const AppointmentModal = ({
   onClose,
   onSave,
   user,
+  handleDelete, // ✅ Hier mit reinnehmen
   allclients, // Wird für Staff/Admin benötigt, um Kunden auszuwählen
   initialEventData, // Für Bearbeitung oder Einfügen von kopierten Daten
   selectedDateAndTime, // Für das Vorbesetzen der Zeit bei neuen Terminen oder kopierten
   lastUsedTitle,
   lastUsedLocation,
   lastUsedDuration,
+  allStaff,
 }) => {
   const [currentEventTitle, setCurrentEventTitle] = useState('');
   const [currentEventLocation, setCurrentEventLocation] = useState('');
@@ -25,6 +28,36 @@ const AppointmentModal = ({
   const [formErrors, setFormErrors] = useState({});
   const [clientNotes, setclientNotes] = useState([]);
   const [staffNotes, setStaffNotes] = useState([]);
+  const [selectedStaffId, setSelectedStaffId] = useState('');
+  const [listOfStaffUsers, setListOfStaffUsers] = useState([]);
+  const [orte, setOrte] = useState([]);
+
+  useEffect(() => {
+    const ladeOrte = async () => {
+      const daten = await fetchStaffLocations();
+      setOrte(daten);
+    };
+  
+    ladeOrte();
+  }, []);
+  
+
+  useEffect(() => {
+    if (user?.role === 'client') {
+      // Coach-Liste laden
+      fetch('/api/staff')
+        .then((res) => res.json())
+        .then((data) => {
+          setListOfStaffUsers(data);
+        });
+  
+      // Standardcoach setzen
+      if (user.assigned_staff_id) {
+        setSelectedStaffId(String(user.assigned_staff_id));
+      }
+    }
+  }, [user]);
+  
 
   useEffect(() => {
     if (isOpen) {
@@ -90,6 +123,15 @@ const AppointmentModal = ({
       if (initialEventData?.id) {
         fetchNotes();
       }
+
+      if (user?.role === 'client') {
+        // Setze Default-Staff (z. B. vom letzten Mal oder vom Server)
+        setSelectedStaffId(
+          initialEventData?.staff_id ||
+          user?.assigned_staff_id ||
+          ''
+        );              }
+      
     }
   }, [
     isOpen,
@@ -105,6 +147,10 @@ const AppointmentModal = ({
 
   const handleInternalSave = () => {
     const errors = {};
+
+    if (user.role === 'client' && !selectedStaffId) {
+      errors.staff = 'Bitte einen Coach auswählen.';
+    }    
 
     // Validierung
     // Nur Staff/Admin müssen einen Kunden auswählen, wenn es nicht ihr eigener Termin ist.
@@ -145,6 +191,7 @@ const AppointmentModal = ({
       // Endzeit basierend auf Startzeit und Dauer berechnen
       end_time: new Date(currentEventDateTime.getTime() + currentDurationMinutes * 60000).toISOString(),
       user_id: clientIdToSend,
+      staff_id: parseInt(selectedStaffId, 10), // ✅ Fix hier
     });
   };
 
@@ -204,13 +251,27 @@ const AppointmentModal = ({
             />
           </>
         )}
-        {/* Wenn Staff/Admin, aber kein Kunde ausgewählt, kann es leer sein oder "Bitte auswählen" anzeigen */}
-        {(user?.role === 'staff' || user?.role === 'admin') && !currentSelectedclientId && (
-          <>
-            <label>Kunde: </label>
-            <input className="calendar-input" value="Bitte wählen Sie einen Kunden" disabled />
-          </>
-        )}
+
+          {user?.role === 'client' && !user.assigned_staff_id && (
+            <>
+              <label htmlFor="select-coach">Coach wählen:</label>
+              <select
+                id="select-coach"
+                className="calendar-input"
+                value={selectedStaffId}
+                onChange={(e) => setSelectedStaffId(e.target.value)}
+              >
+                <option value="">-- Bitte auswählen --</option>
+                {(listOfStaffUsers || []).map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.first_name} {staff.last_name}
+                  </option>
+                ))}
+              </select>
+              {formErrors.staff && <p className="error-text">{formErrors.staff}</p>}
+            </>
+          )}
+
 
 
         <label htmlFor="event-title">📚 Thema: </label>
@@ -224,14 +285,21 @@ const AppointmentModal = ({
         {formErrors.title && <p className="error-text">{formErrors.title}</p>}
 
         <label htmlFor="event-location">📍 Ort: </label>
-        <input
-          type="text"
+        <select
           id="event-location"
           className="calendar-input"
           value={currentEventLocation}
           onChange={(e) => setCurrentEventLocation(e.target.value)}
-        />
+        >
+          <option value="">-- Bitte auswählen --</option>
+          {orte.map((ort) => (
+            <option key={ort.id} value={ort.location}>
+              {ort.location}
+            </option>
+          ))}
+        </select>
         {formErrors.location && <p className="error-text">{formErrors.location}</p>}
+
 
         <label htmlFor="event-datetime">🗓️ Datum & Zeit: </label>
         <DatePicker
@@ -264,6 +332,28 @@ const AppointmentModal = ({
         <div className="button-row">
           <button onClick={handleInternalSave}>Speichern</button>
           <button onClick={onClose} className="cancel-button">Abbrechen</button>
+          
+          {/* Nur anzeigen, wenn ein bestehender Termin editiert wird */}
+          {initialEventData?.id && (
+              <button
+              onClick={() => {
+                onClose(); // Modal schließen
+                setTimeout(() => {
+                  handleDelete(initialEventData); // Nur hier wird handleDelete aufgerufen (inkl. Confirm-Logik)
+                }, 150);
+              }}
+              className="delete-button"
+              style={{
+                backgroundColor: '#e53935',
+                color: '#fff',
+                marginLeft: 'auto',
+              }}
+            >
+              Löschen
+            </button>
+            
+
+          )}
         </div>
       </div>
     </div>
